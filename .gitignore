@@ -1,13 +1,14 @@
 backend/data/index.db
 backend/data/index.db-*
 backend/data/mesh_cache.json
+backend/data/pubmed_baseline/
 backend/data/*.index
 backend/data/*.npy
 backend/data/*.npz
 **/__pycache__/
 **/*.pyc
-.venv/
-venv/
+**/.venv/
+**/venv/
 backend/.env
 frontend/node_modules/
 frontend/dist/

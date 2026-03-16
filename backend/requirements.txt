@@ -1,0 +1,23 @@
+flask==3.0.2
+flask-cors==4.0.0
+httpx==0.28.1
+python-dotenv==1.0.1
+
+# Optional: local retrieval + reranking (requires Python with wheels available; typically 3.10-3.12)
+# sentence-transformers==3.4.1
+# torch==2.6.0
+# numpy==2.2.3
+
+# Optional (enable multimodal endpoints)
+# pypdf==5.3.0
+# python-docx==1.1.2
+# pillow==11.1.0
+# pytesseract==0.3.13
+# faster-whisper==1.1.0
+# soundfile==0.13.1
+
+# Optional (scale vector search)
+# faiss-cpu==1.10.0
+
+# Optional (knowledge graph helpers)
+# networkx==3.4.2
