@@ -1,0 +1,91 @@
+.chat {
+  height: 100%;
+  display: grid;
+  grid-template-rows: auto 1fr auto auto;
+}
+
+.chatBody {
+  overflow: auto;
+  padding: 18px 20px;
+  display: grid;
+  gap: 10px;
+}
+
+.msgRow {
+  display: flex;
+}
+
+.msgRow.left {
+  justify-content: flex-start;
+}
+
+.msgRow.right {
+  justify-content: flex-end;
+}
+
+.msg {
+  max-width: 760px;
+  border-radius: 18px;
+  padding: 12px 12px;
+  border: 1px solid rgba(255, 255, 255, 0.10);
+  background: rgba(0, 0, 0, 0.16);
+  box-shadow: 0 16px 45px rgba(0, 0, 0, 0.20);
+}
+
+.msg.user {
+  background: rgba(82, 214, 164, 0.10);
+  border-color: rgba(82, 214, 164, 0.20);
+}
+
+.msg.bot {
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.msgText {
+  white-space: pre-wrap;
+  font-size: 14px;
+  line-height: 1.4;
+}
+
+.msgMeta {
+  margin-top: 8px;
+  font-size: 11px;
+  color: var(--muted2);
+}
+
+.chatComposer {
+  padding: 12px 20px 16px;
+  border-top: 1px solid rgba(255, 255, 255, 0.10);
+  background: rgba(0, 0, 0, 0.12);
+  display: grid;
+  grid-template-columns: 1fr 120px;
+  gap: 10px;
+  align-items: end;
+}
+
+textarea {
+  width: 100%;
+  resize: none;
+  border-radius: 14px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(0, 0, 0, 0.22);
+  color: var(--text);
+  padding: 12px 12px;
+  outline: none;
+  line-height: 1.35;
+}
+
+.run {
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.10);
+  background: linear-gradient(135deg, rgba(82, 214, 164, 0.95), rgba(246, 211, 101, 0.85));
+  color: rgba(6, 18, 22, 0.95);
+  font-weight: 850;
+  cursor: pointer;
+  height: 44px;
+}
+
+.run:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}

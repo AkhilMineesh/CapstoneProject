@@ -1,0 +1,49 @@
+:root {
+  --bg0: #071a1e;
+  --bg1: #0b2430;
+  --panel: rgba(255, 255, 255, 0.06);
+  --stroke: rgba(255, 255, 255, 0.14);
+  --stroke2: rgba(255, 255, 255, 0.22);
+  --text: rgba(255, 255, 255, 0.92);
+  --muted: rgba(255, 255, 255, 0.70);
+  --muted2: rgba(255, 255, 255, 0.55);
+  --accent: #f6d365;
+  --accent2: #52d6a4;
+  --bad: #ffb3b3;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  font-family: 'IBM Plex Sans', ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+  color: var(--text);
+  background:
+    radial-gradient(1200px 800px at 15% 10%, rgba(82, 214, 164, 0.22), transparent 55%),
+    radial-gradient(900px 700px at 82% 18%, rgba(246, 211, 101, 0.18), transparent 52%),
+    linear-gradient(180deg, var(--bg0), var(--bg1));
+}
+
+code,
+pre {
+  font-family: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono',
+    'Courier New', monospace;
+}
+
+a {
+  color: inherit;
+}
+
+button,
+input,
+textarea {
+  font-family: inherit;
+}

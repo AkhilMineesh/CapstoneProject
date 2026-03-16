@@ -49,11 +49,16 @@ Dataset: PubMed/MEDLINE research abstracts
 - NCBI BioNLP: https://www.ncbi.nlm.nih.gov/research/bionlp/Data
 
 #### Option A: Ingest PubMed baseline XML (recommended)
-1. Download a baseline XML file (example: `pubmed24n0001.xml.gz`) and unzip it.
-2. Run ingestion, build keyword index (FTS), and build embeddings:
+1. Download baseline files from PubMed (this is large):
 ```powershell
 cd backend
-python scripts\ingest_pubmed.py --source xml --xml-path C:\path\to\pubmed24n0001.xml --limit 2000 --rebuild-fts --build-embeddings
+.\.venv\Scripts\Activate.ps1
+python scripts\download_pubmed_baseline.py --out C:\PubMedBaseline
+```
+2. Ingest the directory (and then build FTS + embeddings):
+```powershell
+cd backend
+python scripts\ingest_pubmed_dir.py --dir C:\PubMedBaseline --rebuild-fts --build-embeddings
 ```
 
 #### Option B: Ingest HuggingFace dataset (demo convenience)
@@ -79,7 +84,7 @@ Example (PowerShell) to use OpenAI embeddings:
 cd backend
 $env:MEDRAG_OPENAI_API_KEY = "<your key>"
 $env:MEDRAG_EMBEDDINGS_PROVIDER = "openai"
-python scripts\ingest_pubmed.py --source xml --xml-path C:\path\to\pubmed.xml --limit 2000 --rebuild-fts --build-embeddings
+python scripts\ingest_pubmed_dir.py --dir C:\PubMedBaseline --rebuild-fts --build-embeddings
 ```
 
 Optional OpenAI reranking (LLM-based) can be enabled by setting:
@@ -119,14 +124,6 @@ npm run dev
 ```
 
 Open `http://localhost:5173`. The Vite dev server proxies `/api/*` to `http://localhost:8000`.
-
-## Quick Smoke Test (No Downloads)
-This seeds a tiny demo index (not real PubMed records) so you can verify end-to-end wiring quickly:
-```powershell
-cd backend
-.\.venv\Scripts\Activate.ps1
-python scripts\seed_demo.py
-```
 
 ## Example Queries
 - `Latest treatments for early-stage pancreatic cancer`
