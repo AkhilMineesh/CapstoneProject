@@ -1,20 +1,31 @@
-# MedRAG: Multimodal Medical Research Retrieval + Analysis
+# MedRAG: PubMed Research Chat + Retrieval
 
-AI-powered medical research retrieval and analysis system for clinicians/researchers:
-- Multimodal query input: text, document upload, image OCR, audio (voice) transcription
-- Hybrid research retrieval: semantic vector search + keyword FTS search
-- Cross-encoder re-ranking for improved relevance
-- Metadata filtering: publication year, journal, study type, disease area, clinical trial stage
-- Medical terminology guardrails + MeSH-based query expansion
-- Evidence-based results: PMID citations + evidence snippets
-- Research intelligence: multi-paper summarization, conflicting signals, trends, and a lightweight knowledge graph
-- Multi-agent analysis: Retrieval, Methodology Critic, Statistical Reviewer, Clinical Applicability, Summarizer
+Medical research retrieval and abstract-level analysis UI backed by a local PubMed index.
+
+- Chat-style frontend with a left history sidebar and a dedicated results page per query
+- PubMed baseline ingestion into a local SQLite database + full-text search (FTS)
+- Semantic reranking that considers the whole query (lightweight local embeddings stored at ingest time)
+- Relevance filtering to omit loosely/unrelated results
+- Evidence snippets + PubMed links
 
 This is abstract-level analysis only (PubMed/MEDLINE abstracts). It is not a clinical decision tool.
 
 ## Repo Layout
-- `backend/`: FastAPI service + ingestion/indexing
-- `frontend/`: React (Vite) demo UI
+- `backend/`: FastAPI service + ingestion/indexing (SQLite + FTS + local semantic rerank)
+- `frontend/`: React (Vite) chatbot-style UI
+
+## What Changed
+- Backend now requires ingestion of PubMed baseline XML into `backend/data/index.db` (no more demo `papers.json` seed).
+- Retrieval was tightened:
+  - candidate retrieval uses stronger anchors (phrases/entity tokens) instead of matching any single word
+  - candidates are semantically reranked against the full query
+  - low-relevance results are omitted
+- Frontend was redesigned:
+  - left history bar (new chat, select chat, delete chat, clear chats)
+  - per-query results page (`/chat/:id/results`) with clickable cards and a pop-up article overview
+- `Top K` was removed from the UI; the backend caps results and only returns the most relevant ones.
+- Pydantic models were split into one-class-per-file under `backend/app/models/`.
+- Optional OpenAI embeddings support was added for higher-quality semantic reranking.
 
 ## Setup
 
@@ -27,11 +38,11 @@ python -m venv .venv
 pip install -r requirements.txt
 ```
 
-Start the API (Flask dev server):
+Start the API (FastAPI via Uvicorn):
 ```powershell
 cd backend
-$env:FLASK_APP = "app.main:app"
-python -m flask run --port 8000
+.\.venv\Scripts\Activate.ps1
+uvicorn app.main:app --reload --port 8000
 ```
 
 Health check:
@@ -39,114 +50,99 @@ Health check:
 curl http://localhost:8000/health
 ```
 
-### 2) Dataset Ingestion + Indexing
+### 2) Dataset Ingestion + Indexing (PubMed baseline)
 
-Dataset: PubMed/MEDLINE research abstracts
-- Download: https://pubmed.ncbi.nlm.nih.gov/download/
-- Alternate: https://huggingface.co/datasets/ncbi/pubmed
-- Alternate: https://www.kaggle.com/datasets/bonhart/pubmed-abstracts
-- Text mining: https://pmc.ncbi.nlm.nih.gov/tools/textmining/
-- NCBI BioNLP: https://www.ncbi.nlm.nih.gov/research/bionlp/Data
+Dataset: PubMed/MEDLINE baseline XML from the official downloads page:
+- https://pubmed.ncbi.nlm.nih.gov/download/
 
-#### Option A: Ingest PubMed baseline XML (recommended)
-1. Download a baseline XML file (example: `pubmed24n0001.xml.gz`) and unzip it.
-2. Run ingestion, build keyword index (FTS), and build embeddings:
+This backend ingests baseline `*.xml.gz` into a vector database (Qdrant) and stores:
+- vectors (embeddings) for semantic retrieval
+- payload metadata (title, abstract, journal, year, etc.)
+
+#### Start Qdrant (vector database)
+Run Qdrant locally (Docker example):
 ```powershell
-cd backend
-python scripts\ingest_pubmed.py --source xml --xml-path C:\path\to\pubmed24n0001.xml --limit 2000 --rebuild-fts --build-embeddings
+docker run --rm -p 6333:6333 -p 6334:6334 qdrant/qdrant
 ```
 
-#### Option B: Ingest HuggingFace dataset (demo convenience)
+By default the backend connects to `http://localhost:6333` (override with `MEDRAG_QDRANT_URL`).
+
+#### Option A: Download baseline files with the script
 ```powershell
 cd backend
-pip install datasets
-python scripts\ingest_pubmed.py --source hf --limit 2000 --rebuild-fts --build-embeddings
+.\.venv\Scripts\Activate.ps1
+python scripts\ingest_pubmed_baseline.py --download --rebuild
+```
+
+Tip: to ingest more recent records faster, use the latest baseline files:
+```powershell
+python scripts\ingest_pubmed_baseline.py --download --latest --max-files 50 --rebuild
+```
+
+#### Option B: Manually download baseline files, then ingest
+```powershell
+cd backend
+.\.venv\Scripts\Activate.ps1
+python scripts\ingest_pubmed_baseline.py --baseline-dir C:\path\to\baseline --rebuild
 ```
 
 Notes:
-- The SQLite index lives at `backend/data/index.db`.
-- Embeddings are stored in SQLite in `embeddings.vector` as float32 blobs.
-- For large-scale ingestion, increase `--limit` gradually and consider adding FAISS (see optional deps in `backend/requirements.txt`).
+- Default DB path is `backend/data/index.db` (override with `--db-path` or `MEDRAG_DB_PATH`).
+- Baseline ingestion is large and can take a long time; ensure you have enough disk space.
+- If you change ingestion/reranking code, re-run ingestion with `--rebuild` to refresh stored embeddings.
 
-### Embeddings / Re-ranking Providers
-This project supports:
-- Pure-Python hashed embeddings (default fallback): runs everywhere, no keys required
-- Local models (optional): `sentence-transformers` + `torch` + `numpy` (generally needs Python 3.10-3.12 wheels)
-- Remote embeddings (works on Python 3.14): set `MEDRAG_OPENAI_API_KEY` to use OpenAI embeddings via `httpx`
+### Optional: Use OpenAI embeddings (better semantic search)
+By default, embeddings are computed locally (no network / no key).
 
-Example (PowerShell) to use OpenAI embeddings:
+To use OpenAI embeddings during ingestion + query-time reranking:
 ```powershell
 cd backend
-$env:MEDRAG_OPENAI_API_KEY = "<your key>"
 $env:MEDRAG_EMBEDDINGS_PROVIDER = "openai"
-python scripts\ingest_pubmed.py --source xml --xml-path C:\path\to\pubmed.xml --limit 2000 --rebuild-fts --build-embeddings
+$env:MEDRAG_OPENAI_API_KEY = "<your key>"
+python scripts\ingest_pubmed_baseline.py --download --latest --max-files 50 --rebuild
 ```
 
-Optional OpenAI reranking (LLM-based) can be enabled by setting:
-- `MEDRAG_OPENAI_RERANK_MODEL` (a chat-capable model name)
+Config:
+- `MEDRAG_EMBEDDINGS_PROVIDER`: `local` (default) or `openai`
+- `MEDRAG_OPENAI_API_KEY` (or `OPENAI_API_KEY`)
+- `MEDRAG_OPENAI_EMBED_MODEL` (default: `text-embedding-3-small`)
+- `MEDRAG_OPENAI_EMBED_DIMENSIONS` (optional; reduces vector size)
+- `MEDRAG_OPENAI_BASE_URL` (optional; default: `https://api.openai.com/v1`)
 
 ## API Usage
 
-### Analyze (hybrid retrieval + agents + intelligence)
+### Analyze
 `POST /api/analyze`
 ```json
 {
-  "query": "mRNA vaccine studies published after 2022",
-  "filters": { "publication_year_from": 2023 },
-  "top_k": 20,
+  "query": "Latest treatments for early-stage pancreatic cancer",
+  "filters": { "publication_year_from": 2022 },
   "rerank": true,
   "include_insights": true
 }
 ```
 
-Response includes:
-- `results[]`: ranked papers with `citation` (PMID, title, journal, year, authors), evidence snippets, and metadata
-- `insights`: abstract-level summary, conflicts, trends, knowledge graph, guardrails, expanded query
-- `agent_reports[]`: notes from each specialized agent
+Notes:
+- `rerank: true` enables semantic reranking (recommended).
+- `top_k` is accepted for compatibility, but results are capped and low-relevance items are omitted.
 
 ### Multimodal endpoints
-- `POST /api/query/document` (txt/pdf/docx)
-- `POST /api/query/image` (OCR via tesseract)
-- `POST /api/query/audio` (ASR via faster-whisper)
-
-These endpoints extract text and then run the same analysis pipeline.
+- `POST /api/query/document` (txt/pdf/docx) – best-effort text extraction
+- `POST /api/query/image` – placeholder text extraction unless you add OCR
+- `POST /api/query/audio` – placeholder text extraction unless you add ASR
 
 ## Frontend Demo
 ```powershell
 cd frontend
-npm install
-npm run dev
+npm.cmd install
+npm.cmd run dev
 ```
+
+If `npm` fails in PowerShell due to execution policy, use `npm.cmd` as above.
 
 Open `http://localhost:5173`. The Vite dev server proxies `/api/*` to `http://localhost:8000`.
-
-## Quick Smoke Test (No Downloads)
-This seeds a tiny demo index (not real PubMed records) so you can verify end-to-end wiring quickly:
-```powershell
-cd backend
-.\.venv\Scripts\Activate.ps1
-python scripts\seed_demo.py
-```
 
 ## Example Queries
 - `Latest treatments for early-stage pancreatic cancer`
 - `Non-invasive therapy for knee arthritis`
 - `mRNA vaccine studies published after 2022`
-
-## Example Output (What To Expect)
-- Results list with PubMed links (`https://pubmed.ncbi.nlm.nih.gov/<PMID>/`)
-- Evidence snippets taken from abstract sentences that overlap the expanded query terms
-- Insights panel:
-  - Multi-paper summary (extractive, abstract-level)
-  - Conflicting signals detection (heuristic stance on outcomes)
-  - Trend counts for common MeSH/keyword terms by year
-  - Knowledge graph preview connecting disease area, treatments, and outcomes
-
-## Optional Multimodal Dependencies
-Multimodal endpoints require extra packages and system tools:
-- PDF: `pypdf`
-- DOCX: `python-docx`
-- Image OCR: `pillow`, `pytesseract`, and the `tesseract` binary installed and on PATH
-- Audio: `faster-whisper` and audio deps (`soundfile`)
-
-See `backend/requirements.txt` for optional dependency pins.
