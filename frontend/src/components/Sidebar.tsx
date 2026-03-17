@@ -1,5 +1,5 @@
-import { NavLink, useNavigate } from 'react-router-dom'
 import { useMemo } from 'react'
+import { NavLink, useNavigate } from 'react-router-dom'
 import { useChats } from '../state/chats'
 
 function formatTime(ts: number): string {
@@ -14,7 +14,6 @@ function formatTime(ts: number): string {
 export default function Sidebar(props: { mobileOpen: boolean; setMobileOpen: (v: boolean) => void }) {
   const { chats, clearChats, deleteChat, activeChatId, setActiveChatId } = useChats()
   const navigate = useNavigate()
-
   const items = useMemo(() => chats, [chats])
 
   return (
@@ -22,11 +21,11 @@ export default function Sidebar(props: { mobileOpen: boolean; setMobileOpen: (v:
       <div className="sideTop">
         <div className="sideBrand" role="button" tabIndex={0} onClick={() => navigate('/')}>
           <div className="logo" aria-hidden="true">
-            MR
+            <img src="/medrag-logo.svg" alt="" />
           </div>
           <div className="brandText">
             <div className="brandTitle">MedRAG</div>
-            <div className="brandSub">Research chat</div>
+            <div className="brandSub">Evidence workspace</div>
           </div>
         </div>
         <button
@@ -35,7 +34,7 @@ export default function Sidebar(props: { mobileOpen: boolean; setMobileOpen: (v:
           aria-label="Close sidebar"
           type="button"
         >
-          ✕
+          X
         </button>
       </div>
 
@@ -52,7 +51,7 @@ export default function Sidebar(props: { mobileOpen: boolean; setMobileOpen: (v:
           }}
           disabled={!items.length}
         >
-          Clear chats
+          Clear history
         </button>
       </div>
 
@@ -87,17 +86,14 @@ export default function Sidebar(props: { mobileOpen: boolean; setMobileOpen: (v:
         ) : (
           <div className="emptySide">
             <div className="smallMuted">No chats yet.</div>
-            <div className="smallMuted">Ask a question to get started.</div>
+            <div className="smallMuted">Start a prompt to create your first workspace.</div>
           </div>
         )}
       </div>
 
       <div className="sideFooter">
-        <div className="smallMuted">
-          Abstract-level analysis only. Not a clinical decision tool.
-        </div>
+        <div className="smallMuted">Abstract-level analysis only. Not a clinical decision tool.</div>
       </div>
     </aside>
   )
 }
-

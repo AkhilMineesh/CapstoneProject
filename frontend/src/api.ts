@@ -36,6 +36,7 @@ export type PaperResult = {
   disease_area?: string | null
   trial_stage?: string | null
   evidence: EvidenceSnippet[]
+  key_points?: string[]
 }
 
 export type ConflictItem = {

@@ -70,6 +70,9 @@ class Settings:
     openai_api_key: str | None
     openai_base_url: str
     openai_embedding_model: str
+    openai_reasoning_model: str
+    openai_reasoning_timeout_s: float
+    openai_clinical_reasoning: bool
 
     rerank_model: str
     openai_rerank_model: str | None
@@ -106,6 +109,9 @@ def load_settings() -> Settings:
     openai_api_key = _env("MEDRAG_OPENAI_API_KEY") or _env("OPENAI_API_KEY")
     openai_base_url = _env("MEDRAG_OPENAI_BASE_URL", "https://api.openai.com/v1") or ""
     openai_embedding_model = _env("MEDRAG_OPENAI_EMBEDDING_MODEL", "text-embedding-3-small") or ""
+    openai_reasoning_model = _env("MEDRAG_OPENAI_REASONING_MODEL", "gpt-4.1-mini") or ""
+    openai_reasoning_timeout_s = _env_float("MEDRAG_OPENAI_REASONING_TIMEOUT_S", 120.0)
+    openai_clinical_reasoning = _env_bool("MEDRAG_OPENAI_CLINICAL_REASONING", True)
 
     rerank_model = _env("MEDRAG_RERANK_MODEL", "cross-encoder/ms-marco-MiniLM-L-6-v2") or ""
     openai_rerank_model = _env("MEDRAG_OPENAI_RERANK_MODEL")
@@ -138,6 +144,9 @@ def load_settings() -> Settings:
         openai_api_key=openai_api_key,
         openai_base_url=openai_base_url,
         openai_embedding_model=openai_embedding_model,
+        openai_reasoning_model=openai_reasoning_model,
+        openai_reasoning_timeout_s=openai_reasoning_timeout_s,
+        openai_clinical_reasoning=openai_clinical_reasoning,
         rerank_model=rerank_model,
         openai_rerank_model=openai_rerank_model,
         rerank_top_k=rerank_top_k,

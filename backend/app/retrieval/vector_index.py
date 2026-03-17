@@ -76,7 +76,11 @@ def vector_search(conn: sqlite3.Connection, query_vec: list[float], top_k: int) 
 
 
 def vector_search_subset(
-    conn: sqlite3.Connection, query_vec: list[float], pmids: Iterable[str], top_k: int
+    conn: sqlite3.Connection,
+    query_vec: list[float],
+    pmids: Iterable[str],
+    top_k: int,
+    model_id: str | None = None,
 ) -> list[VectorSearchHit]:
     """
     Fast exact vector search over a restricted candidate set.
@@ -95,6 +99,7 @@ def vector_search_subset(
     def dot(a: array, b: array) -> float:
         return sum((x * y for x, y in zip(a, b, strict=False)))
 
+    q_dim = len(q)
     k = max(1, int(top_k))
     heap: list[tuple[float, str]] = []  # min-heap of (score, pmid)
 
@@ -103,15 +108,21 @@ def vector_search_subset(
     for i in range(0, len(pmid_list), chunk_size):
         chunk = pmid_list[i : i + chunk_size]
         placeholders = ",".join(["?"] * len(chunk))
-        cur = conn.execute(
-            f"SELECT pmid, dim, vector FROM embeddings WHERE pmid IN ({placeholders})",
-            chunk,
-        )
+        if model_id:
+            cur = conn.execute(
+                f"SELECT pmid, dim, vector FROM embeddings WHERE model = ? AND pmid IN ({placeholders})",
+                [model_id, *chunk],
+            )
+        else:
+            cur = conn.execute(
+                f"SELECT pmid, dim, vector FROM embeddings WHERE pmid IN ({placeholders})",
+                chunk,
+            )
         for row in cur:
             v = array("f")
             v.frombytes(row["vector"])
             dim = int(row["dim"])
-            if len(v) != dim or dim <= 0:
+            if len(v) != dim or dim <= 0 or dim != q_dim:
                 continue
             # Normalize defensively in case older vectors weren't normalized at write-time.
             vn = math.sqrt(sum((x * x for x in v))) + 1e-12

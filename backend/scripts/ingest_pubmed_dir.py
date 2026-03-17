@@ -17,6 +17,11 @@ def main() -> int:
     ap.add_argument("--dir", required=True, help="Directory containing PubMed baseline .xml.gz files")
     ap.add_argument("--db", default=str(settings.db_path), help="SQLite index DB path")
     ap.add_argument("--max-files", type=int, default=0, help="If >0, only ingest first N files (for testing)")
+    ap.add_argument(
+        "--latest",
+        action="store_true",
+        help="When used with --max-files, ingest the most recent N files instead of the first N.",
+    )
     ap.add_argument("--limit-per-file", type=int, default=0, help="If >0, limit records per file (for testing)")
     ap.add_argument("--rebuild-fts", action="store_true", help="Rebuild FTS after ingestion completes")
     ap.add_argument("--build-embeddings", action="store_true", help="Build embeddings after ingestion completes")
@@ -31,7 +36,7 @@ def main() -> int:
     if not files:
         raise SystemExit("No pubmed*.xml.gz files found in the directory.")
     if args.max_files and args.max_files > 0:
-        files = files[: args.max_files]
+        files = files[-args.max_files :] if args.latest else files[: args.max_files]
 
     db_path = Path(args.db)
     with db_conn(db_path) as conn:

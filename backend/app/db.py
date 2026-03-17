@@ -68,6 +68,8 @@ def migrate(conn: sqlite3.Connection) -> None:
         CREATE INDEX IF NOT EXISTS idx_papers_journal ON papers(journal);
         CREATE INDEX IF NOT EXISTS idx_papers_disease_area ON papers(disease_area);
         CREATE INDEX IF NOT EXISTS idx_papers_trial_stage ON papers(trial_stage);
+        CREATE INDEX IF NOT EXISTS idx_embeddings_model ON embeddings(model);
+        CREATE INDEX IF NOT EXISTS idx_embeddings_model_pmid ON embeddings(model, pmid);
         """
     )
     conn.commit()

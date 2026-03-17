@@ -124,6 +124,9 @@ def run_multi_agent_analysis(req: dict[str, Any]) -> dict[str, Any]:
         if n == 0:
             raise ValueError("Index is empty. Ingest PubMed/MEDLINE abstracts first (see backend/scripts/ingest_pubmed.py).")
         emb_n = int(conn.execute("SELECT COUNT(1) AS c FROM embeddings").fetchone()["c"])
+        years = conn.execute("SELECT MIN(year) AS min_y, MAX(year) AS max_y FROM papers").fetchone()
+        min_year = years["min_y"] if years else None
+        max_year = years["max_y"] if years else None
 
         mesh = None
         expanded_query = query
@@ -134,6 +137,18 @@ def run_multi_agent_analysis(req: dict[str, Any]) -> dict[str, Any]:
             expanded_query = mesh.expanded_query_text
 
         guard = validate_medical_terminology(conn, expanded_query)
+        guardrail_warnings = list(guard.warnings)
+        if filters and (min_year is not None or max_year is not None):
+            y_from = filters.get("publication_year_from")
+            y_to = filters.get("publication_year_to")
+            if y_from is not None and max_year is not None and int(y_from) > int(max_year):
+                guardrail_warnings.append(
+                    f"Requested year filter starts at {int(y_from)}, but indexed data currently ends at {int(max_year)}."
+                )
+            if y_to is not None and min_year is not None and int(y_to) < int(min_year):
+                guardrail_warnings.append(
+                    f"Requested year filter ends at {int(y_to)}, but indexed data currently starts at {int(min_year)}."
+                )
         results = hybrid_retrieve(
             conn=conn,
             query=query,
@@ -149,7 +164,7 @@ def run_multi_agent_analysis(req: dict[str, Any]) -> dict[str, Any]:
                 query=query,
                 expanded_query=expanded_query if expanded_query != query else None,
                 results=results,
-                guardrails=guard.warnings,
+                guardrails=guardrail_warnings,
             )
 
         return {
@@ -157,5 +172,5 @@ def run_multi_agent_analysis(req: dict[str, Any]) -> dict[str, Any]:
             "expanded_query": expanded_query if expanded_query != query else None,
             "results": results,
             "insights": insights,
-            "guardrails": guard.warnings,
+            "guardrails": guardrail_warnings,
         }

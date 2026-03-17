@@ -24,6 +24,71 @@ def create_app() -> Flask:
     def api_health():
         return jsonify({"ok": True})
 
+    @app.get("/api/capabilities")
+    def capabilities():
+        return jsonify(
+            {
+                "service": "MedRAG API",
+                "version": "1",
+                "endpoints": [
+                    {
+                        "path": "/api/analyze",
+                        "method": "POST",
+                        "description": "Primary text-query retrieval endpoint with optional metadata filters.",
+                    },
+                    {
+                        "path": "/api/query/document",
+                        "method": "POST multipart/form-data",
+                        "description": "Extracts text from uploaded document (txt/pdf/docx) and runs analysis.",
+                    },
+                    {
+                        "path": "/api/query/image",
+                        "method": "POST multipart/form-data",
+                        "description": "Extracts text from uploaded image/screenshot and runs analysis.",
+                    },
+                    {
+                        "path": "/api/query/audio",
+                        "method": "POST multipart/form-data",
+                        "description": "Transcribes uploaded audio discussion and runs analysis.",
+                    },
+                    {
+                        "path": "/api/metadata/options",
+                        "method": "GET",
+                        "description": "Returns filter metadata (year range, journal, disease area, trial stage, study type).",
+                    },
+                    {
+                        "path": "/api/paper/<pmid>",
+                        "method": "GET",
+                        "description": "Returns full stored metadata for a specific article.",
+                    },
+                    {
+                        "path": "/api/related/<pmid>",
+                        "method": "GET",
+                        "description": "Finds related papers using the selected paper as query context.",
+                    },
+                ],
+                "analyze_request_example": {
+                    "query": "Non-invasive therapy for knee arthritis",
+                    "filters": {
+                        "publication_year_from": 2022,
+                        "publication_year_to": 2026,
+                        "journal": "The Lancet",
+                        "disease_area": "Arthritis",
+                        "study_type": "Randomized Controlled Trial",
+                    },
+                    "rerank": True,
+                    "include_insights": True,
+                },
+                "analyze_response_fields": [
+                    "results[].citation (pmid, title, journal, year, authors, doi)",
+                    "results[].evidence (supporting snippets)",
+                    "results[].key_points (per-article distilled points)",
+                    "insights.summary / insights.key_findings (cross-paper evidence synthesis)",
+                    "guardrails (query/data-quality caveats)",
+                ],
+            }
+        )
+
     @app.post("/api/analyze")
     def analyze():
         payload = request.get_json(silent=True) or {}

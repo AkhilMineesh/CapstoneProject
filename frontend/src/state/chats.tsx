@@ -30,6 +30,7 @@ type ChatsState = {
   activeChatId: string | null
   setActiveChatId: (id: string | null) => void
   createChatFromQuery: (query: string, options?: CreateChatOptions) => Promise<Chat>
+  createChatFromResponse: (request: SearchRequest, response: AnalyzeResponse, userMessage?: string) => Chat
   deleteChat: (id: string) => void
   clearChats: () => void
   getChat: (id: string) => Chat | null
@@ -80,6 +81,28 @@ export function ChatsProvider(props: { children: React.ReactNode }) {
     [chats],
   )
 
+  const createChatFromResponse = useCallback((request: SearchRequest, response: AnalyzeResponse, userMessage?: string) => {
+    const now = Date.now()
+    const chatId = makeId()
+    const shownUserText = (userMessage ?? request.query).trim() || 'Uploaded input'
+    const messages: ChatMessage[] = [
+      { id: makeId(), role: 'user', text: shownUserText, createdAt: now },
+      { id: makeId(), role: 'assistant', text: summarizeAssistant(response), createdAt: now + 1 },
+    ]
+    const chat: Chat = {
+      id: chatId,
+      title: shownUserText.slice(0, 42) || 'New chat',
+      createdAt: now,
+      updatedAt: now,
+      request,
+      response,
+      messages,
+    }
+    setChats((prev) => [chat, ...prev].slice(0, 100))
+    setActiveChatId(chatId)
+    return chat
+  }, [])
+
   const createChatFromQuery = useCallback(async (query: string, options?: CreateChatOptions) => {
     const req: SearchRequest = {
       query,
@@ -127,11 +150,12 @@ export function ChatsProvider(props: { children: React.ReactNode }) {
       activeChatId,
       setActiveChatId,
       createChatFromQuery,
+      createChatFromResponse,
       deleteChat,
       clearChats,
       getChat,
     }),
-    [activeChatId, chats, clearChats, createChatFromQuery, deleteChat, getChat],
+    [activeChatId, chats, clearChats, createChatFromQuery, createChatFromResponse, deleteChat, getChat],
   )
 
   return <ChatsContext.Provider value={value}>{props.children}</ChatsContext.Provider>

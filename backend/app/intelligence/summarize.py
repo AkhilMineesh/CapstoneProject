@@ -4,6 +4,8 @@ import re
 from collections import Counter, defaultdict
 from typing import Any
 
+from .clinical_reasoning import generate_clinical_reasoning
+
 
 _POS_RE = re.compile(r"\b(improv(ed|ement)|benefit(ed)?|reduc(ed|tion)|increas(ed|e)\s+survival)\b", re.I)
 _NEG_RE = re.compile(r"\b(wors(e|ened)|harm(ed)?|increas(ed|e)\s+(pain|mortality))\b", re.I)
@@ -163,10 +165,25 @@ def summarize_insights(
         if len(findings) >= 5:
             break
 
-    summary = (
-        f"Retrieved {len(results)} papers for: {query}. "
-        "Summary is based on abstracts only; verify full text, endpoints, and inclusion criteria."
-    )
+    summary = f"Retrieved {len(results)} papers for: {query}."
+    clinical_reasoning = None
+    clinical_limitations: list[str] = []
+    try:
+        clinical_reasoning = generate_clinical_reasoning(query=query, results=results, guardrails=guardrails)
+    except Exception as e:  # noqa: BLE001
+        # Keep baseline behavior if the model call fails.
+        clinical_reasoning = None
+        clinical_limitations.append(f"OpenAI clinical reasoning fallback used due to upstream error: {type(e).__name__}.")
+
+    if clinical_reasoning:
+        if clinical_reasoning.get("summary"):
+            summary = str(clinical_reasoning["summary"]).strip()
+        cr_findings = clinical_reasoning.get("key_findings")
+        if isinstance(cr_findings, list) and cr_findings:
+            findings = [str(x) for x in cr_findings if str(x).strip()][:8]
+        cr_limits = clinical_reasoning.get("limitations")
+        if isinstance(cr_limits, list):
+            clinical_limitations.extend([str(x) for x in cr_limits if str(x).strip()])
 
     return {
         "summary": summary,
@@ -176,4 +193,6 @@ def summarize_insights(
         "knowledge_graph": build_knowledge_graph(results),
         "guardrails": guardrails,
         "expanded_query": expanded_query,
+        "clinical_limitations": clinical_limitations,
+        "clinical_reasoning_model": (clinical_reasoning or {}).get("model"),
     }

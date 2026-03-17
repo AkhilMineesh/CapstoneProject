@@ -17,6 +17,7 @@ export default function ArticleModal(props: {
 
   const match = pct(p.score, props.maxScore)
   const pubmedUrl = /^\d+$/.test(p.pmid) ? `https://pubmed.ncbi.nlm.nih.gov/${p.pmid}/` : null
+  const doiUrl = p.citation.doi ? `https://doi.org/${p.citation.doi}` : null
 
   return (
     <div className="modalOverlay" role="dialog" aria-modal="true" aria-label="Article overview" onMouseDown={props.onClose}>
@@ -86,6 +87,33 @@ export default function ArticleModal(props: {
             ) : (
               <div className="smallMuted">No snippets returned.</div>
             )}
+          </div>
+
+          <div className="modalSection">
+            <div className="sectionTitle">Key points</div>
+            {p.key_points?.length ? (
+              <div className="snips">
+                {p.key_points.map((kp, idx) => (
+                  <div key={idx} className="snip">
+                    <div className="snipText">{kp}</div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="smallMuted">No distilled key points available.</div>
+            )}
+          </div>
+
+          <div className="modalSection">
+            <div className="sectionTitle">Supporting references</div>
+            <div className="kv">
+              <div className="k">PMID</div>
+              <div className="v">{p.pmid}</div>
+              <div className="k">PubMed</div>
+              <div className="v">{pubmedUrl ? <a href={pubmedUrl} target="_blank" rel="noreferrer">{pubmedUrl}</a> : 'n/a'}</div>
+              <div className="k">DOI</div>
+              <div className="v">{doiUrl ? <a href={doiUrl} target="_blank" rel="noreferrer">{p.citation.doi}</a> : 'n/a'}</div>
+            </div>
           </div>
         </div>
 

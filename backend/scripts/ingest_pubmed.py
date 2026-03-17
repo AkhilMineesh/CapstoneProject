@@ -220,12 +220,25 @@ def build_embeddings(conn: sqlite3.Connection, reembed: bool = False, limit: int
     where = ""
     params: list[Any] = []
     if not reembed:
-        where = "WHERE pmid NOT IN (SELECT pmid FROM embeddings)"
+        total_papers = int(conn.execute("SELECT COUNT(1) FROM papers").fetchone()[0] or 0)
+        same_model = int(conn.execute("SELECT COUNT(1) FROM embeddings WHERE model = ?", (model_id,)).fetchone()[0] or 0)
+        if same_model >= total_papers and total_papers > 0:
+            return 0
+        # Keep embeddings consistent with the active provider/model:
+        # embed rows that are missing OR currently stored with a different model.
+        where = """
+        LEFT JOIN embeddings e ON e.pmid = p.pmid
+        WHERE e.pmid IS NULL OR e.model != ?
+        """
+        params.append(model_id)
     if limit is not None:
         limit_sql = f"LIMIT {int(limit)}"
     else:
         limit_sql = ""
-    cur = conn.execute(f"SELECT pmid, title, abstract FROM papers {where} {limit_sql}", params)
+    cur = conn.execute(
+        f"SELECT p.pmid, p.title, p.abstract FROM papers p {where} {limit_sql}",
+        params,
+    )
     rows = cur.fetchall()
     if not rows:
         return 0

@@ -44,7 +44,17 @@ Dataset: PubMed/MEDLINE baseline XML from the official downloads page:
 ```powershell
 cd backend
 .\.venv\Scripts\Activate.ps1
-python scripts\download_pubmed_baseline.py --out data\pubmed_baseline --max-files 50
+python scripts\download_pubmed_baseline.py --out data\pubmed_baseline --max-files 15
+```
+
+For a full baseline index, omit `--max-files`. The `--max-files 15` form is only for quick local testing and mostly contains older records.
+To download the most recent 15 files instead, use:
+```powershell
+python scripts\download_pubmed_baseline.py --out data\pubmed_baseline --max-files 15 --latest
+```
+If your network is unstable, you can increase resiliency:
+```powershell
+python scripts\download_pubmed_baseline.py --out data\pubmed_baseline --max-files 15 --latest --retries 8 --timeout 600
 ```
 
 #### Step B: Ingest + build indexes
@@ -53,10 +63,15 @@ cd backend
 .\.venv\Scripts\Activate.ps1
 python scripts\ingest_pubmed_dir.py --dir data\pubmed_baseline --rebuild-fts --build-embeddings
 ```
+For your `testenv` setup, ingest the latest subset with embeddings:
+```powershell
+.\testenv\Scripts\python scripts\ingest_pubmed_dir.py --dir data\pubmed_baseline --build-embeddings --latest --max-files 15
+```
 
 Notes:
 - Default DB path is `backend/data/index.db`.
-- Re-running ingestion is incremental (it skips already-embedded PMIDs unless you pass `--reembed`).
+- Re-running ingestion is incremental.
+- Embeddings are now model-aware: when you switch provider/model (for example from `hash` to `openai`), `--build-embeddings` will refresh rows that were embedded with a different model.
 
 ### Embeddings Providers
 Default is a local-only fallback:
@@ -69,6 +84,17 @@ Optional local semantic embeddings (requires wheels; typically Python 3.10-3.12)
 Optional OpenAI embeddings (explicit opt-in):
 - Set `MEDRAG_EMBEDDINGS_PROVIDER=openai`
 - Set `MEDRAG_OPENAI_API_KEY` (or `OPENAI_API_KEY`)
+- Optional model override: `MEDRAG_OPENAI_EMBEDDING_MODEL=text-embedding-3-small`
+- Optional deep clinical reasoning (for richer insight synthesis):
+  - `MEDRAG_OPENAI_CLINICAL_REASONING=true`
+  - `MEDRAG_OPENAI_REASONING_MODEL=gpt-4.1-mini`
+  - `MEDRAG_OPENAI_REASONING_TIMEOUT_S=120`
+- After enabling OpenAI, refresh embeddings for your existing papers:
+```powershell
+cd backend
+.\.venv\Scripts\Activate.ps1
+python scripts\ingest_pubmed_dir.py --dir data\pubmed_baseline --build-embeddings
+```
 
 Environment:
 - `backend/.env` is auto-loaded if present (see `backend/.env.example`).
@@ -93,6 +119,14 @@ Environment:
 - `POST /api/query/document` (txt/pdf/docx)
 - `POST /api/query/image`
 - `POST /api/query/audio`
+- `GET /api/capabilities` (API discoverability for external apps)
+
+Multimodal extraction behavior:
+- Local-first: uses installed local parsers/OCR/STT when available.
+- OpenAI fallback: if local tools are missing, the backend can use OpenAI multimodal models when `MEDRAG_OPENAI_API_KEY` is configured.
+- Optional model env vars:
+  - `MEDRAG_OPENAI_MULTIMODAL_MODEL` (default `gpt-4.1-mini`) for document/image text extraction
+  - `MEDRAG_OPENAI_AUDIO_MODEL` (default `gpt-4o-mini-transcribe`) for audio transcription
 
 ## Frontend Demo
 ```powershell

@@ -9,6 +9,7 @@ import re
 
 from ..intelligence.evidence import pick_evidence_snippets
 from ..settings import settings
+from .models.registry import get_embedding_model_id
 from .embedding import embed_texts
 from .rerank import rerank_pairs
 from .vector_index import vector_search_subset
@@ -59,6 +60,31 @@ _STOPWORDS = {
     "resectable",
     "localized",
 }
+
+
+def _expand_query_terms_for_overlap(q_terms: set[str]) -> set[str]:
+    """
+    Add a compact alias set for common biomedical phrasing variants.
+    """
+    out = set(q_terms)
+    if "mrna" in out:
+        out.update({"messenger", "rna"})
+    if "vaccine" in out or "vaccines" in out:
+        out.update({"vaccine", "vaccines", "vaccination", "vaccinations", "immunization", "immunizations"})
+    if "arthritis" in out:
+        out.update({"osteoarthritis"})
+    return out
+
+
+def _title_has_term(term: str, title_terms: set[str]) -> bool:
+    t = (term or "").lower()
+    if t == "mrna":
+        return "mrna" in title_terms or ("messenger" in title_terms and "rna" in title_terms)
+    if t in {"vaccine", "vaccines"}:
+        return bool({"vaccine", "vaccines", "vaccination", "vaccinations", "immunization", "immunizations"} & title_terms)
+    if t == "arthritis":
+        return bool({"arthritis", "osteoarthritis"} & title_terms)
+    return t in title_terms
 
 
 def _focus_terms(query: str) -> list[str]:
@@ -188,6 +214,7 @@ def hybrid_retrieve(
     vec_score_map: dict[str, float] = {}
     if use_vectors and kw_hits:
         qvec = embed_texts([expanded_query])[0]
+        model_id = get_embedding_model_id()
         # Avoid full-table vector scans; only do vector similarity over the keyword candidate set.
         candidate_pmids = [h.pmid for h in kw_hits]
         vec_hits = vector_search_subset(
@@ -195,6 +222,7 @@ def hybrid_retrieve(
             qvec,
             candidate_pmids,
             min(settings.vector_top_k, max(1, len(candidate_pmids))),
+            model_id=model_id,
         )
         vec_score_map = {h.pmid: float(h.score) for h in vec_hits}
 
@@ -264,7 +292,7 @@ def hybrid_retrieve(
     results: list[dict[str, Any]] = []
     base_score_map = {pmid: sc for pmid, sc in combined}
     # Use the original query for overlap gating; expanded_query can include MeSH terms that add noise.
-    q_terms = set(_focus_terms(query))
+    q_terms = _expand_query_terms_for_overlap(set(_focus_terms(query)))
     # If the query includes specific stage qualifiers, require more overlap to improve exactness.
     q_lower = query.lower()
     required_overlap = settings.min_query_term_overlap
@@ -299,6 +327,17 @@ def hybrid_retrieve(
     }
     intervention_soft_markers = {"review", "systematic", "meta", "guideline", "consensus"}
     intervention_core_markers = {
+        "therapy",
+        "therapeutic",
+        "treatment",
+        "treat",
+        "treated",
+        "treating",
+        "management",
+        "manage",
+        "conservative",
+        "noninvasive",
+        "non-invasive",
         "chemotherapy",
         "radiotherapy",
         "immunotherapy",
@@ -321,6 +360,11 @@ def hybrid_retrieve(
         "regimen",
         "randomized",
         "phase",
+        "vaccine",
+        "vaccination",
+        "vaccinations",
+        "immunization",
+        "immunizations",
     }
     surgical_markers = {"surgery", "surgical", "replacement", "arthroplasty", "resection"}
     noninvasive_markers = {"noninvasive", "non-invasive", "conservative", "physical", "exercise", "rehabilitation"}
@@ -351,7 +395,7 @@ def hybrid_retrieve(
                 if not ({"cancer", "carcinoma", "neoplasm"} & title_terms):
                     return False
             else:
-                if not must_title.issubset(title_terms):
+                if not all(_title_has_term(t, title_terms) for t in must_title):
                     return False
         doc_terms = {t.lower() for t in re.findall(r"[A-Za-z0-9]+", f"{r['title']} {r['abstract']}") if len(t) >= 3}
         if wants_noninvasive:
@@ -362,9 +406,16 @@ def hybrid_retrieve(
             # This is important when using hash embeddings (no real semantics) to avoid biomarker/diagnostic papers.
             title_intervention = {
                 "treat",
+                "treated",
+                "treating",
                 "treatment",
                 "therapy",
                 "therapeutic",
+                "management",
+                "manage",
+                "conservative",
+                "noninvasive",
+                "non-invasive",
                 "trial",
                 "randomized",
                 "phase",
@@ -387,6 +438,11 @@ def hybrid_retrieve(
                 "rehabilitation",
                 "drug",
                 "regimen",
+                "vaccine",
+                "vaccination",
+                "vaccinations",
+                "immunization",
+                "immunizations",
             }
             if not any(m in title_terms for m in title_intervention) and not any(
                 m in doc_terms for m in intervention_soft_markers
@@ -449,6 +505,10 @@ def hybrid_retrieve(
             "doi": r["doi"],
         }
         evidence = [{"text": s.text, "why": s.why} for s in pick_evidence_snippets(r["abstract"], expanded_query, max_snippets=3)]
+        key_points = [e["text"] for e in evidence if isinstance(e, dict) and e.get("text")]
+        if not key_points and (r["abstract"] or "").strip():
+            # Fallback: first sentence-level slice when snippet extraction is empty.
+            key_points = [(r["abstract"] or "").strip()[:240]]
         results.append(
             {
                 "pmid": pmid,
@@ -462,6 +522,7 @@ def hybrid_retrieve(
                 "disease_area": r["disease_area"],
                 "trial_stage": r["trial_stage"],
                 "evidence": evidence,
+                "key_points": key_points[:3],
             }
         )
         seen_pmids.add(pmid)
