@@ -54,8 +54,24 @@ function makeId(): string {
   return `c_${Math.random().toString(16).slice(2)}_${Date.now()}`
 }
 
-function summarizeAssistant(resp: AnalyzeResponse): string {
+function truncate(s: string, n: number): string {
+  const t = (s ?? '').trim()
+  if (!t) return ''
+  return t.length > n ? `${t.slice(0, n - 1)}…` : t
+}
+
+function summarizeAssistant(resp: AnalyzeResponse, req?: SearchRequest): string {
   const parts: string[] = []
+
+  // When uploads are used, the backend may derive a different query than what the user typed.
+  // Show the exact query used so the user can understand why results were selected.
+  const reqQ = (req?.query ?? '').trim()
+  const usedQ = (resp.query ?? '').trim()
+  if (usedQ && reqQ && usedQ !== reqQ) {
+    parts.push(`Used query:\n${truncate(usedQ, 280)}`)
+    if (resp.expanded_query?.trim()) parts.push(`Expanded:\n${truncate(resp.expanded_query.trim(), 280)}`)
+  }
+
   const summary = resp.insights?.summary?.trim()
   if (summary) parts.push(summary)
   const findings = (resp.insights?.key_findings ?? []).slice(0, 4)
@@ -87,7 +103,7 @@ export function ChatsProvider(props: { children: React.ReactNode }) {
     const shownUserText = (userMessage ?? request.query).trim() || 'Uploaded input'
     const messages: ChatMessage[] = [
       { id: makeId(), role: 'user', text: shownUserText, createdAt: now },
-      { id: makeId(), role: 'assistant', text: summarizeAssistant(response), createdAt: now + 1 },
+      { id: makeId(), role: 'assistant', text: summarizeAssistant(response, request), createdAt: now + 1 },
     ]
     const chat: Chat = {
       id: chatId,
@@ -116,7 +132,7 @@ export function ChatsProvider(props: { children: React.ReactNode }) {
     const chatId = makeId()
     const messages: ChatMessage[] = [
       { id: makeId(), role: 'user', text: query, createdAt: now },
-      { id: makeId(), role: 'assistant', text: summarizeAssistant(resp), createdAt: now + 1 },
+      { id: makeId(), role: 'assistant', text: summarizeAssistant(resp, req), createdAt: now + 1 },
     ]
 
     const chat: Chat = {

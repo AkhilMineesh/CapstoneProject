@@ -11,7 +11,26 @@ import httpx
 
 
 def _openai_api_key() -> str | None:
-    return os.getenv("MEDRAG_OPENAI_API_KEY") or os.getenv("OPENAI_API_KEY")
+    v = os.getenv("MEDRAG_OPENAI_API_KEY") or os.getenv("OPENAI_API_KEY")
+    if v is None:
+        return None
+    v = v.strip()
+    return v or None
+
+
+def _openai_headers() -> dict[str, str]:
+    key = _openai_api_key()
+    if not key:
+        return {}
+    h: dict[str, str] = {"Authorization": f"Bearer {key}"}
+    org = (os.getenv("MEDRAG_OPENAI_ORG_ID") or os.getenv("OPENAI_ORG_ID") or "").strip()
+    proj = (os.getenv("MEDRAG_OPENAI_PROJECT_ID") or os.getenv("OPENAI_PROJECT_ID") or "").strip()
+    # These headers are optional; they can help with project/org scoped keys in some setups.
+    if org:
+        h["OpenAI-Organization"] = org
+    if proj:
+        h["OpenAI-Project"] = proj
+    return h
 
 
 def _openai_base_url() -> str:
@@ -25,10 +44,9 @@ def _openai_mm_model() -> str:
 def _openai_audio_model() -> str:
     return os.getenv("MEDRAG_OPENAI_AUDIO_MODEL") or "gpt-4o-mini-transcribe"
 
-
 def _extract_text_with_openai_file(filename: str, data: bytes) -> str:
-    key = _openai_api_key()
-    if not key:
+    headers = _openai_headers()
+    if not headers:
         raise RuntimeError("OpenAI API key not configured for multimodal fallback.")
     mime = mimetypes.guess_type(filename)[0] or "application/octet-stream"
     b64 = base64.b64encode(data).decode("ascii")
@@ -55,7 +73,7 @@ def _extract_text_with_openai_file(filename: str, data: bytes) -> str:
         ],
     }
     timeout = httpx.Timeout(connect=30.0, read=300.0, write=300.0, pool=30.0)
-    with httpx.Client(base_url=_openai_base_url(), timeout=timeout, headers={"Authorization": f"Bearer {key}"}) as client:
+    with httpx.Client(base_url=_openai_base_url(), timeout=timeout, headers=headers) as client:
         r = client.post("/responses", json=payload)
         r.raise_for_status()
         j = r.json()
@@ -78,8 +96,8 @@ def _extract_text_from_response_json(payload: dict) -> str:
 
 
 def _extract_text_from_openai_image(filename: str, data: bytes) -> str:
-    key = _openai_api_key()
-    if not key:
+    headers = _openai_headers()
+    if not headers:
         raise RuntimeError("OpenAI API key not configured for image fallback.")
     mime = mimetypes.guess_type(filename)[0] or "image/png"
     b64 = base64.b64encode(data).decode("ascii")
@@ -102,7 +120,7 @@ def _extract_text_from_openai_image(filename: str, data: bytes) -> str:
         ],
     }
     timeout = httpx.Timeout(connect=30.0, read=300.0, write=300.0, pool=30.0)
-    with httpx.Client(base_url=_openai_base_url(), timeout=timeout, headers={"Authorization": f"Bearer {key}"}) as client:
+    with httpx.Client(base_url=_openai_base_url(), timeout=timeout, headers=headers) as client:
         r = client.post("/responses", json=payload)
         r.raise_for_status()
         j = r.json()
@@ -115,12 +133,12 @@ def _extract_text_from_openai_image(filename: str, data: bytes) -> str:
 
 
 def _extract_text_from_openai_audio(filename: str, data: bytes) -> str:
-    key = _openai_api_key()
-    if not key:
+    headers = _openai_headers()
+    if not headers:
         raise RuntimeError("OpenAI API key not configured for audio fallback.")
     mime = mimetypes.guess_type(filename)[0] or "audio/wav"
     timeout = httpx.Timeout(connect=30.0, read=600.0, write=600.0, pool=30.0)
-    with httpx.Client(base_url=_openai_base_url(), timeout=timeout, headers={"Authorization": f"Bearer {key}"}) as client:
+    with httpx.Client(base_url=_openai_base_url(), timeout=timeout, headers=headers) as client:
         r = client.post(
             "/audio/transcriptions",
             data={"model": _openai_audio_model(), "response_format": "text"},
@@ -196,24 +214,39 @@ def extract_text_from_document(filename: str, data: bytes) -> str:
 
 
 def extract_text_from_image(filename: str, data: bytes) -> str:
-    # Try local OCR first.
-    try:
-        from PIL import Image
-        import pytesseract
-        if _has_tesseract():
-            img = Image.open(io.BytesIO(data))
-            text = (pytesseract.image_to_string(img) or "").strip()
-            if text:
-                return text
-    except Exception:
-        pass
+    # Try local OCR first using the external `tesseract` CLI directly.
+    # This avoids relying on Pillow wheels (often unavailable on Python 3.14 on Windows).
+    if _has_tesseract():
+        import tempfile
+
+        suffix = Path(filename or "upload.png").suffix or ".png"
+        with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as f:
+            f.write(data)
+            tmp_path = f.name
+        try:
+            p = subprocess.run(
+                ["tesseract", tmp_path, "stdout", "-l", "eng"],
+                capture_output=True,
+                text=True,
+                timeout=60,
+            )
+            if p.returncode == 0:
+                text = (p.stdout or "").strip()
+                if text:
+                    return text
+        finally:
+            try:
+                os.remove(tmp_path)
+            except Exception:  # noqa: BLE001
+                pass
 
     # Fallback to OpenAI vision OCR model.
     if _openai_api_key():
         return _extract_text_from_openai_image(filename, data)
 
     raise RuntimeError(
-        "Image OCR unavailable. Install pillow+pytesseract+tesseract, or configure OpenAI key for multimodal fallback."
+        "Image OCR unavailable. Install Tesseract OCR and ensure `tesseract` is on PATH, "
+        "or configure an OpenAI key for multimodal fallback."
     )
 
 

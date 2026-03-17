@@ -24,6 +24,16 @@ class OpenAIEmbeddingProvider:
             return []
 
         headers = {"Authorization": f"Bearer {self._api_key}"}
+        # Optional org/project headers for some setups.
+        # Read from environment to avoid threading Settings through this class.
+        import os
+
+        org = (os.getenv("MEDRAG_OPENAI_ORG_ID") or os.getenv("OPENAI_ORG_ID") or "").strip()
+        proj = (os.getenv("MEDRAG_OPENAI_PROJECT_ID") or os.getenv("OPENAI_PROJECT_ID") or "").strip()
+        if org:
+            headers["OpenAI-Organization"] = org
+        if proj:
+            headers["OpenAI-Project"] = proj
         timeout = httpx.Timeout(connect=30.0, read=180.0, write=180.0, pool=30.0)
         limits = httpx.Limits(max_connections=10, max_keepalive_connections=5)
 

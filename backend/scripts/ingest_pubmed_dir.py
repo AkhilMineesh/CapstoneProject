@@ -12,6 +12,13 @@ from ingest_pubmed import build_embeddings, parse_pubmed_xml  # noqa: E402
 from app.settings import settings  # noqa: E402
 
 
+def _fts_row_count(conn) -> int:
+    try:
+        return int(conn.execute("SELECT COUNT(1) FROM paper_fts").fetchone()[0])
+    except Exception:  # noqa: BLE001
+        return 0
+
+
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--dir", required=True, help="Directory containing PubMed baseline .xml.gz files")
@@ -58,7 +65,10 @@ def main() -> int:
                 total += upsert_papers(conn, batch)
             print(f"total papers={total}", file=sys.stderr)
 
-        if args.rebuild_fts:
+        # Hybrid retrieval depends on FTS. If the user didn't request rebuild explicitly but
+        # the FTS table is empty (common when ingestion is run without --rebuild-fts),
+        # rebuild automatically so search returns results.
+        if args.rebuild_fts or _fts_row_count(conn) == 0:
             rebuild_fts(conn)
             print("FTS rebuild complete", file=sys.stderr)
 

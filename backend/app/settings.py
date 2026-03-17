@@ -20,7 +20,10 @@ def _load_dotenv(repo_root: Path) -> None:
 
 def _env(name: str, default: str | None = None) -> str | None:
     v = os.getenv(name)
-    return v if v is not None and v != "" else default
+    if v is None:
+        return default
+    v = v.strip()
+    return v if v != "" else default
 
 
 def _env_bool(name: str, default: bool) -> bool:

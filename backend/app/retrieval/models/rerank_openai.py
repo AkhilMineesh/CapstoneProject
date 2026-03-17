@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import os
 
 import httpx
 
@@ -21,6 +22,12 @@ class OpenAIReranker:
         if not passages:
             return []
         headers = {"Authorization": f"Bearer {self._api_key}"}
+        org = (os.getenv("MEDRAG_OPENAI_ORG_ID") or os.getenv("OPENAI_ORG_ID") or "").strip()
+        proj = (os.getenv("MEDRAG_OPENAI_PROJECT_ID") or os.getenv("OPENAI_PROJECT_ID") or "").strip()
+        if org:
+            headers["OpenAI-Organization"] = org
+        if proj:
+            headers["OpenAI-Project"] = proj
         prompt = {
             "query": query,
             "passages": passages,

@@ -9,6 +9,7 @@ from flask_cors import CORS
 from .agents.orchestrator import run_multi_agent_analysis
 from .db import db_conn, migrate
 from .multimodal.extract import extract_text_from_audio, extract_text_from_document, extract_text_from_image
+from .multimodal.query_compact import compact_query_from_text
 from .settings import settings
 
 
@@ -180,9 +181,11 @@ def create_app() -> Flask:
         data = f.read()
         try:
             text = extract_text_from_document(f.filename or "upload", data)
+            mode = (request.args.get("mode") or "keywords").strip().lower()
+            query_text = text if mode == "full" else compact_query_from_text(text)
             resp = run_multi_agent_analysis(
                 {
-                    "query": text,
+                    "query": query_text,
                     "rerank": request.args.get("rerank", "true").lower() != "false",
                     "include_insights": request.args.get("include_insights", "true").lower() != "false",
                 }

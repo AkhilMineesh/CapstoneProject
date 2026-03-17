@@ -44,28 +44,14 @@ Dataset: PubMed/MEDLINE baseline XML from the official downloads page:
 ```powershell
 cd backend
 .\.venv\Scripts\Activate.ps1
-python scripts\download_pubmed_baseline.py --out data\pubmed_baseline --max-files 15
-```
-
-For a full baseline index, omit `--max-files`. The `--max-files 15` form is only for quick local testing and mostly contains older records.
-To download the most recent 15 files instead, use:
-```powershell
-python scripts\download_pubmed_baseline.py --out data\pubmed_baseline --max-files 15 --latest
-```
-If your network is unstable, you can increase resiliency:
-```powershell
-python scripts\download_pubmed_baseline.py --out data\pubmed_baseline --max-files 15 --latest --retries 8 --timeout 600
+python scripts\download_pubmed_baseline.py --out data\pubmed_baseline --max-files 50 --latest
 ```
 
 #### Step B: Ingest + build indexes
 ```powershell
 cd backend
 .\.venv\Scripts\Activate.ps1
-python scripts\ingest_pubmed_dir.py --dir data\pubmed_baseline --rebuild-fts --build-embeddings
-```
-For your `testenv` setup, ingest the latest subset with embeddings:
-```powershell
-.\testenv\Scripts\python scripts\ingest_pubmed_dir.py --dir data\pubmed_baseline --build-embeddings --latest --max-files 15
+python scripts\ingest_pubmed_dir.py --dir data\pubmed_baseline --build-embeddings --latest --max-files 15
 ```
 
 Notes:
