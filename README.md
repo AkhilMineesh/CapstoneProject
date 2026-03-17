@@ -142,3 +142,68 @@ Open `http://localhost:5173`. The Vite dev server proxies `/api/*` to `http://lo
 - `Non-invasive therapy for knee arthritis`
 - `mRNA vaccine studies published after 2022`
 
+## Example Research Query + Retrieved Results
+
+### Example Request
+```bash
+curl -X POST http://localhost:8000/api/analyze \
+  -H "Content-Type: application/json" \
+  -d "{\"query\":\"mRNA vaccine studies published after 2022\",\"filters\":{\"publication_year_from\":2023},\"rerank\":true,\"include_insights\":true}"
+```
+
+### Example Retrieved Results (trimmed)
+```json
+{
+  "query": "mRNA vaccine studies published after 2022",
+  "results": [
+    {
+      "pmid": "41439194",
+      "title": "Messenger RNA vaccines in the prevention of allergic diseases",
+      "score": 0.92,
+      "citation": {
+        "journal": "Allergy",
+        "year": 2025,
+        "doi": "10.xxxx/xxxx"
+      },
+      "evidence": [
+        { "text": "Recent mRNA vaccine platforms have expanded beyond infectious disease into allergy prevention.", "why": "query overlap + semantic relevance" }
+      ]
+    },
+    {
+      "pmid": "41597174",
+      "title": "Advances in mRNA-Based Melanoma Vaccines",
+      "score": 0.88,
+      "citation": {
+        "journal": "Cancers",
+        "year": 2026
+      }
+    }
+  ]
+}
+```
+
+## Example Generated Research Insight / Literature Summary
+
+When `include_insights=true`, the API returns cross-paper synthesis under `insights`.
+
+```json
+{
+  "insights": {
+    "summary": "Recent studies suggest mRNA platforms are expanding into oncology and immune modulation with generally favorable early safety profiles, though trial heterogeneity and short follow-up limit certainty.",
+    "key_findings": [
+      "Messenger RNA vaccines in the prevention of allergic diseases (2025, PMID 41439194): mRNA platforms show preventive immunologic potential beyond infectious diseases.",
+      "Advances in mRNA-Based Melanoma Vaccines (2026, PMID 41597174): Personalized neoantigen strategies show promising anti-tumor immune activation."
+    ],
+    "guardrails": [
+      "Abstract-level synthesis only; verify full-text endpoints and inclusion criteria."
+    ]
+  }
+}
+```
+
+In the frontend results page:
+- **Result count** appears prominently at the top
+- **Evidence Summary** is toggleable
+- **Summary content** appears first
+- **References** are listed at the end of the summary block
+
