@@ -1,107 +1,106 @@
-# MedRAG: PubMed Research Chat + Retrieval
+# MedAssist: PubMed Research Chat + Retrieval
 
 Medical research retrieval and abstract-level analysis UI backed by a local PubMed index.
 
-- Chat-style frontend with a left history sidebar and a dedicated results page per query
-- PubMed baseline ingestion into a local SQLite database + full-text search (FTS)
-- Hybrid retrieval (keyword + vector when available) with relevance gating to omit loosely/unrelated results
-- Evidence snippets + PubMed links
+- Chat-style frontend with history sidebar + results view
+- PubMed baseline ingestion into local SQLite + FTS
+- Hybrid retrieval (keyword + vector embeddings)
+- Evidence snippets, citation metadata, and cross-paper synthesis
+- Multimodal query intake (text/document/image/audio)
 
-This is abstract-level analysis only (PubMed/MEDLINE abstracts). It is not a clinical decision tool.
+This is abstract-level research support only. It is **not** a clinical decision tool.
 
 ## Repo Layout
-- `backend/`: Flask API + ingestion/indexing (SQLite + FTS + embeddings)
-- `frontend/`: React (Vite) chatbot-style UI
+- `backend/`: Flask API, ingestion, indexing, retrieval
+- `frontend/`: React + Vite UI
 
-## Setup
+## 1) Backend Setup (Windows)
+From project root:
 
-### 1) Backend
 ```powershell
 cd backend
-python -m venv .venv
-.\.venv\Scripts\Activate.ps1
+python -m venv testenv
+.\testenv\Scripts\activate
 pip install -r requirements.txt
 ```
 
-Create your environment file and update values:
+Create env file:
+
 ```powershell
 Copy-Item .env.example .env
 ```
 
-Then edit `backend\.env` and set the values you need, especially:
-- `MEDRAG_EMBEDDINGS_PROVIDER` (`hash`, `local`, or `openai`)
-- `MEDRAG_OPENAI_API_KEY` (or `OPENAI_API_KEY`) if using OpenAI
-- `MEDRAG_OPENAI_EMBEDDING_MODEL` (optional model override)
-- `MEDRAG_OPENAI_CLINICAL_REASONING=true` (optional, for deeper synthesis)
+Then edit `backend\.env` and set at minimum:
+- `MEDRAG_OPENAI_API_KEY=<your_key>`
+- `MEDRAG_EMBEDDINGS_PROVIDER=openai`
+- `MEDRAG_OPENAI_EMBEDDING_MODEL=text-embedding-3-small`
 
-Start the API (port 8000):
+Optional but recommended for deeper insights:
+- `MEDRAG_OPENAI_CLINICAL_REASONING=true`
+- `MEDRAG_OPENAI_REASONING_MODEL=gpt-4.1-mini`
+
+Important:
+- `backend/.env` is auto-loaded by the app.
+- If logs show `provider=hash`, your OpenAI env config was not loaded correctly.
+
+## 2) Download Latest PubMed Baseline Files
+Use the latest N files (recommended starting size: 15):
+
 ```powershell
 cd backend
-.\.venv\Scripts\Activate.ps1
-python -m app.main
+.\testenv\Scripts\python scripts\download_pubmed_baseline.py --out data\pubmed_baseline --max-files 15 --latest
+```
+
+## 3) Ingest + Build Embeddings
+
+```powershell
+cd backend
+.\testenv\Scripts\python scripts\ingest_pubmed_dir.py --dir data\pubmed_baseline --build-embeddings --latest --max-files 15
+```
+
+Notes:
+- Ingestion is incremental.
+- FTS is auto-rebuilt if missing.
+- Embeddings can take significant time (especially with OpenAI + large paper counts).
+- Do **not** Ctrl+C while embeddings are still being written if you want a complete embedding pass.
+
+## 4) Run Backend API
+
+```powershell
+cd backend
+.\testenv\Scripts\python -m app.main
 ```
 
 Health check:
+
 ```powershell
 curl http://localhost:8000/health
 ```
 
-### 2) Dataset Ingestion + Indexing (PubMed baseline)
+## 5) Run Frontend
+In a new terminal:
 
-Dataset: PubMed/MEDLINE baseline XML from the official downloads page:
-- https://pubmed.ncbi.nlm.nih.gov/download/
-
-#### Step A: Download baseline files (large)
 ```powershell
-cd backend
-.\.venv\Scripts\Activate.ps1
-python scripts\download_pubmed_baseline.py --out data\pubmed_baseline --max-files 50 --latest
+cd frontend
+npm.cmd install
+npm.cmd run dev
 ```
 
-#### Step B: Ingest + build indexes
-```powershell
-cd backend
-.\.venv\Scripts\Activate.ps1
-python scripts\ingest_pubmed_dir.py --dir data\pubmed_baseline --build-embeddings --latest --max-files 50
-```
-It is suggested that you select the number of files you desire to ingest into the database.
+Open:
+- `http://localhost:5173`
 
+## Core API Endpoints
+- `POST /api/analyze` - main text query retrieval
+- `POST /api/query/document` - document upload query
+- `POST /api/query/image` - image upload query
+- `POST /api/query/audio` - audio upload/transcription query
+- `GET /api/metadata/options` - filters metadata
+- `GET /api/paper/<pmid>` - paper details
+- `GET /api/related/<pmid>` - related papers
+- `GET /api/capabilities` - endpoint discovery
 
-Notes:
-- Default DB path is `backend/data/index.db`.
-- Re-running ingestion is incremental.
-- Embeddings are now model-aware: when you switch provider/model (for example from `hash` to `openai`), `--build-embeddings` will refresh rows that were embedded with a different model.
+## Example Analyze Request
 
-### Embeddings Providers
-Default is a local-only fallback:
-- `MEDRAG_EMBEDDINGS_PROVIDER=hash` (works everywhere, no keys required)
-
-Optional local semantic embeddings (requires wheels; typically Python 3.10-3.12):
-- Install local model deps in `backend/requirements-local-models.txt`
-- Set `MEDRAG_EMBEDDINGS_PROVIDER=local`
-
-Optional OpenAI embeddings (explicit opt-in):
-- Set `MEDRAG_EMBEDDINGS_PROVIDER=openai`
-- Set `MEDRAG_OPENAI_API_KEY` (or `OPENAI_API_KEY`)
-- Optional model override: `MEDRAG_OPENAI_EMBEDDING_MODEL=text-embedding-3-small`
-- Optional deep clinical reasoning (for richer insight synthesis):
-  - `MEDRAG_OPENAI_CLINICAL_REASONING=true`
-  - `MEDRAG_OPENAI_REASONING_MODEL=gpt-4.1-mini`
-  - `MEDRAG_OPENAI_REASONING_TIMEOUT_S=120`
-- After enabling OpenAI, refresh embeddings for your existing papers:
-```powershell
-cd backend
-.\.venv\Scripts\Activate.ps1
-python scripts\ingest_pubmed_dir.py --dir data\pubmed_baseline --build-embeddings
-```
-
-Environment:
-- `backend/.env` is auto-loaded if present (see `backend/.env.example`).
-
-## API Usage
-
-### Analyze
-`POST /api/analyze`
 ```json
 {
   "query": "Latest treatments for early-stage pancreatic cancer",
@@ -111,98 +110,18 @@ Environment:
 }
 ```
 
-### Similar Papers
-`GET /api/related/<pmid>`
+## Example Casual Query Support
+Casual prompts are normalized before retrieval, for example:
+- `I need you to retrieve articles on cancer` -> normalized for stronger retrieval
 
-### Multimodal endpoints (best-effort extraction)
-- `POST /api/query/document` (txt/pdf/docx)
-- `POST /api/query/image`
-- `POST /api/query/audio`
-- `GET /api/capabilities` (API discoverability for external apps)
+## Troubleshooting
+- `Cannot find native binding` (frontend/Vite rolldown):
+  - Delete `frontend\node_modules` and `frontend\package-lock.json`, then run `npm.cmd install` again.
+- `httpx.RemoteProtocolError` while downloading PubMed:
+  - Re-run the same download command; downloader has retries for transient disconnects.
+- Very slow search:
+  - Ensure embeddings are built with OpenAI provider and ingestion completed successfully.
 
-Multimodal extraction behavior:
-- Local-first: uses installed local parsers/OCR/STT when available.
-- OpenAI fallback: if local tools are missing, the backend can use OpenAI multimodal models when `MEDRAG_OPENAI_API_KEY` is configured.
-- Optional model env vars:
-  - `MEDRAG_OPENAI_MULTIMODAL_MODEL` (default `gpt-4.1-mini`) for document/image text extraction
-  - `MEDRAG_OPENAI_AUDIO_MODEL` (default `gpt-4o-mini-transcribe`) for audio transcription
-
-## Frontend Demo
-```powershell
-cd frontend
-npm.cmd install
-npm.cmd run dev
-```
-
-Open `http://localhost:5173`. The Vite dev server proxies `/api/*` to `http://localhost:8000`.
-
-## Example Queries
-- `Latest treatments for early-stage pancreatic cancer`
-- `Non-invasive therapy for knee arthritis`
-- `mRNA vaccine studies published after 2022`
-
-## Example Research Query + Retrieved Results
-
-### Example Request
-```bash
-curl -X POST http://localhost:8000/api/analyze \
-  -H "Content-Type: application/json" \
-  -d "{\"query\":\"mRNA vaccine studies published after 2022\",\"filters\":{\"publication_year_from\":2023},\"rerank\":true,\"include_insights\":true}"
-```
-
-### Example Retrieved Results (trimmed)
-```json
-{
-  "query": "mRNA vaccine studies published after 2022",
-  "results": [
-    {
-      "pmid": "41439194",
-      "title": "Messenger RNA vaccines in the prevention of allergic diseases",
-      "score": 0.92,
-      "citation": {
-        "journal": "Allergy",
-        "year": 2025,
-        "doi": "10.xxxx/xxxx"
-      },
-      "evidence": [
-        { "text": "Recent mRNA vaccine platforms have expanded beyond infectious disease into allergy prevention.", "why": "query overlap + semantic relevance" }
-      ]
-    },
-    {
-      "pmid": "41597174",
-      "title": "Advances in mRNA-Based Melanoma Vaccines",
-      "score": 0.88,
-      "citation": {
-        "journal": "Cancers",
-        "year": 2026
-      }
-    }
-  ]
-}
-```
-
-## Example Generated Research Insight / Literature Summary
-
-When `include_insights=true`, the API returns cross-paper synthesis under `insights`.
-
-```json
-{
-  "insights": {
-    "summary": "Recent studies suggest mRNA platforms are expanding into oncology and immune modulation with generally favorable early safety profiles, though trial heterogeneity and short follow-up limit certainty.",
-    "key_findings": [
-      "Messenger RNA vaccines in the prevention of allergic diseases (2025, PMID 41439194): mRNA platforms show preventive immunologic potential beyond infectious diseases.",
-      "Advances in mRNA-Based Melanoma Vaccines (2026, PMID 41597174): Personalized neoantigen strategies show promising anti-tumor immune activation."
-    ],
-    "guardrails": [
-      "Abstract-level synthesis only; verify full-text endpoints and inclusion criteria."
-    ]
-  }
-}
-```
-
-In the frontend results page:
-- **Result count** appears prominently at the top
-- **Evidence Summary** is toggleable
-- **Summary content** appears first
-- **References** are listed at the end of the summary block
-
+## Safety / Scope
+- Results and synthesis are based on PubMed abstracts and metadata.
+- Verify with full text, trial design, endpoints, and inclusion/exclusion criteria before real-world decisions.
