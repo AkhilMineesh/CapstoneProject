@@ -37,6 +37,11 @@ export default function ChatPage() {
   const mediaStreamRef = useRef<MediaStream | null>(null)
   const chunksRef = useRef<BlobPart[]>([])
   const [recording, setRecording] = useState(false)
+  const introFullText = 'Welcome to MedRAG Research Assistant'
+  const introPrefix = 'Welcome to '
+  const introBrand = 'MedRAG Research Assistant'
+  const [introPhase, setIntroPhase] = useState<'typing' | 'move' | 'done'>('typing')
+  const [typedLen, setTypedLen] = useState(0)
 
   useEffect(() => {
     let mounted = true
@@ -67,6 +72,26 @@ export default function ChatPage() {
     }
   }, [activeChat?.id])
 
+  useEffect(() => {
+    if (activeChat) {
+      setIntroPhase('done')
+      setTypedLen(introFullText.length)
+      return
+    }
+    if (introPhase !== 'typing') return
+    if (typedLen >= introFullText.length) {
+      const moveTimer = window.setTimeout(() => setIntroPhase('move'), 260)
+      return () => window.clearTimeout(moveTimer)
+    }
+    const timer = window.setTimeout(() => setTypedLen((n) => Math.min(n + 1, introFullText.length)), 40)
+    return () => window.clearTimeout(timer)
+  }, [activeChat, introPhase, typedLen])
+
+  useEffect(() => {
+    if (introPhase !== 'move') return
+    const doneTimer = window.setTimeout(() => setIntroPhase('done'), 760)
+    return () => window.clearTimeout(doneTimer)
+  }, [introPhase])
   function buildFilters(): Filters {
     const filters: Filters = {}
     if (yearFrom !== '') filters.publication_year_from = Number(yearFrom)
@@ -180,6 +205,31 @@ export default function ChatPage() {
   function applySuggestedPrompt(text: string) {
     setQuery(text)
     ;(document.getElementById('composer') as HTMLTextAreaElement | null)?.focus()
+  }
+  function landingHeader() {
+    return (
+      <div className="landingHeader">
+        <div className="landingTitle">MedRAG Research Assistant</div>
+        <div className="landingSubtitle">Search biomedical evidence with multimodal input, hybrid retrieval, and citation-backed summaries in one modern workflow.</div>
+      </div>
+    )
+  }
+
+  function introHeader() {
+    const typedText = introFullText.slice(0, typedLen)
+    const prefixTypedLen = Math.min(typedText.length, introPrefix.length)
+    const brandTypedLen = Math.max(typedText.length - introPrefix.length, 0)
+    const shownPrefix = introPrefix.slice(0, prefixTypedLen)
+    const shownBrand = introBrand.slice(0, brandTypedLen)
+    return (
+      <div className={`introStage phase-${introPhase}`}>
+        <div className="introLine" aria-live="polite">
+          <span className="introPrefix">{shownPrefix}</span>
+          <span className="introBrand">{shownBrand}</span>
+        </div>
+        <div className="introLandingHeader">{landingHeader()}</div>
+      </div>
+    )
   }
 
   function composer(classes: string) {
@@ -360,10 +410,7 @@ export default function ChatPage() {
         {!activeChat ? (
           <div className="welcome landing">
             <div className="landingStack">
-              <div className="landingHeader">
-                <div className="landingTitle">MedRAG Research Assistant</div>
-                <div className="landingSubtitle">Search biomedical evidence with multimodal input, hybrid retrieval, and citation-backed summaries in one modern workflow.</div>
-              </div>
+              {introPhase === 'done' ? landingHeader() : introHeader()}
               <div className="recommendedLabel">Recommended prompts</div>
               <div className="recommendedPrompts">
                 {[
@@ -388,5 +435,13 @@ export default function ChatPage() {
     </div>
   )
 }
+
+
+
+
+
+
+
+
 
 
