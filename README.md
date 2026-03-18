@@ -23,6 +23,17 @@ python -m venv .venv
 pip install -r requirements.txt
 ```
 
+Create your environment file and update values:
+```powershell
+Copy-Item .env.example .env
+```
+
+Then edit `backend\.env` and set the values you need, especially:
+- `MEDRAG_EMBEDDINGS_PROVIDER` (`hash`, `local`, or `openai`)
+- `MEDRAG_OPENAI_API_KEY` (or `OPENAI_API_KEY`) if using OpenAI
+- `MEDRAG_OPENAI_EMBEDDING_MODEL` (optional model override)
+- `MEDRAG_OPENAI_CLINICAL_REASONING=true` (optional, for deeper synthesis)
+
 Start the API (port 8000):
 ```powershell
 cd backend
@@ -51,8 +62,10 @@ python scripts\download_pubmed_baseline.py --out data\pubmed_baseline --max-file
 ```powershell
 cd backend
 .\.venv\Scripts\Activate.ps1
-python scripts\ingest_pubmed_dir.py --dir data\pubmed_baseline --build-embeddings --latest --max-files 15
+python scripts\ingest_pubmed_dir.py --dir data\pubmed_baseline --build-embeddings --latest --max-files 25
 ```
+It is suggested that you select the number of files you desire to ingest into the database.
+
 
 Notes:
 - Default DB path is `backend/data/index.db`.
