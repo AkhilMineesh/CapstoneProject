@@ -10,7 +10,7 @@ from flask_cors import CORS
 from .agents.orchestrator import run_multi_agent_analysis
 from .db import db_conn, migrate
 from .multimodal.extract import extract_text_from_audio, extract_text_from_document, infer_query_from_image
-from .multimodal.query_compact import compact_query_from_text, simple_query_from_text
+from .multimodal.query_compact import compact_query_from_text, simple_query_from_text, simple_query_from_audio_transcript
 from .settings import settings
 
 
@@ -81,6 +81,34 @@ def _image_query_fallbacks(query: str) -> list[str]:
         seen_q.add(sl)
         final.append(s)
     return final
+
+
+
+
+def _audio_query_fallbacks(query: str) -> list[str]:
+    tokens = [t.lower() for t in re.findall(r"[A-Za-z0-9]+", query or "") if len(t) >= 3]
+    if not tokens:
+        return ["medical research"]
+    out: list[str] = []
+    if len(tokens) >= 2:
+        out.append(f"{tokens[0]} {tokens[1]}")
+        out.append(f"{tokens[0]} {tokens[1]} treatment")
+    if len(tokens) >= 3:
+        out.append(" ".join(tokens[:3]))
+    out.append("medical research")
+    dedup: list[str] = []
+    seen: set[str] = set()
+    q0 = " ".join((query or "").lower().split())
+    for x in out:
+        s = " ".join(x.split()).strip()
+        if not s:
+            continue
+        sl = s.lower()
+        if sl == q0 or sl in seen:
+            continue
+        seen.add(sl)
+        dedup.append(s)
+    return dedup
 
 
 def create_app() -> Flask:
@@ -309,14 +337,38 @@ def create_app() -> Flask:
         f = request.files["file"]
         data = f.read()
         try:
-            text = extract_text_from_audio(f.filename or "upload", data)
+            transcript = extract_text_from_audio(f.filename or "upload", data)
+            query_text = simple_query_from_audio_transcript(transcript)
+            if not query_text:
+                return jsonify({
+                    "detail": "The stated query is not usable. Please try recording again with a clearer, specific research question."
+                }), 400
+
+            rerank = request.args.get("rerank", "true").lower() != "false"
+            include_insights = request.args.get("include_insights", "true").lower() != "false"
             resp = run_multi_agent_analysis(
                 {
-                    "query": text,
-                    "rerank": request.args.get("rerank", "true").lower() != "false",
-                    "include_insights": request.args.get("include_insights", "true").lower() != "false",
+                    "query": query_text,
+                    "rerank": rerank,
+                    "include_insights": include_insights,
                 }
             )
+            if not (resp.get("results") or []):
+                for alt in _audio_query_fallbacks(query_text):
+                    trial = run_multi_agent_analysis(
+                        {
+                            "query": alt,
+                            "rerank": rerank,
+                            "include_insights": include_insights,
+                        }
+                    )
+                    if trial.get("results"):
+                        resp = trial
+                        break
+            if not (resp.get("results") or []):
+                return jsonify({
+                    "detail": "The stated query is not usable. Please try recording again with a clearer, specific research question."
+                }), 400
         except Exception as e:  # noqa: BLE001
             return jsonify({"detail": str(e)}), 400
         return jsonify(resp)

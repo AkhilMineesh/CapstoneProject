@@ -228,3 +228,39 @@ def simple_query_from_text(text: str, *, max_terms: int = 6, max_chars: int = 18
     if q:
         q = q[0].upper() + q[1:]
     return q[:max_chars]
+
+
+
+def simple_query_from_audio_transcript(text: str, *, max_chars: int = 180) -> str:
+    """
+    Build a short query from a transcribed voice request.
+    Returns empty string when transcript is too noisy/ambiguous to use.
+    """
+    t = _normalize_ws(text or "")
+    if not t:
+        return ""
+
+    # Remove common speech fillers to improve usable intent extraction.
+    filler = {
+        "um", "uh", "hmm", "like", "you", "know", "basically", "actually", "please", "hey", "hi", "hello"
+    }
+    words = [w.lower() for w in re.findall(r"[A-Za-z][A-Za-z0-9\-]{1,}", t)]
+    words = [w for w in words if w not in filler]
+
+    # Not enough meaningful content.
+    if len(words) < 3:
+        return ""
+
+    # Try concise first sentence if it looks like a query.
+    first = t.split(".")[0].strip()
+    if 4 <= len(first.split()) <= 16:
+        q = re.sub(r"\s+", " ", first).strip()
+        return q[:max_chars]
+
+    # Fall back to term-based simple query.
+    q = simple_query_from_text(" ".join(words), max_terms=6, max_chars=max_chars)
+    # Guard against very generic output.
+    bad = {"medical research summary", "research summary", "medical research"}
+    if q.strip().lower() in bad:
+        return ""
+    return q

@@ -19,7 +19,7 @@ export default function Sidebar(props: { mobileOpen: boolean; setMobileOpen: (v:
   return (
     <aside className={props.mobileOpen ? 'sidebar open' : 'sidebar'} aria-label="Chat history">
       <div className="sideTop">
-        <div className="sideBrand" role="button" tabIndex={0} onClick={() => navigate('/')}>
+        <div className="sideBrand" role="button" tabIndex={0} onClick={() => navigate('/chat')}>
           <div className="logo" aria-hidden="true">
             <img src="/medrag-logo.svg" alt="" />
           </div>
@@ -39,7 +39,7 @@ export default function Sidebar(props: { mobileOpen: boolean; setMobileOpen: (v:
       </div>
 
       <div className="sideActions">
-        <button className="btn secondary" type="button" onClick={() => navigate('/')}>
+        <button className="btn secondary" type="button" onClick={() => { setActiveChatId(null); navigate('/chat') }}>
           New chat
         </button>
         <button
@@ -47,7 +47,7 @@ export default function Sidebar(props: { mobileOpen: boolean; setMobileOpen: (v:
           type="button"
           onClick={() => {
             clearChats()
-            navigate('/')
+            navigate('/chat')
           }}
           disabled={!items.length}
         >
@@ -76,7 +76,7 @@ export default function Sidebar(props: { mobileOpen: boolean; setMobileOpen: (v:
                 aria-label={`Delete chat ${c.title}`}
                 onClick={() => {
                   deleteChat(c.id)
-                  if (activeChatId === c.id) navigate('/')
+                  if (activeChatId === c.id) navigate('/chat')
                 }}
               >
                 🗑

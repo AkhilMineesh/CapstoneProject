@@ -61,6 +61,9 @@ export default function ChatPage() {
     if (activeChat) {
       setQuery(activeChat.request.query)
       setError(null)
+    } else {
+      setQuery('')
+      setError(null)
     }
   }, [activeChat?.id])
 
@@ -256,19 +259,31 @@ export default function ChatPage() {
         {error ? <div className="errorBanner">Error: {error}</div> : null}
 
         <div className="composerRow">
-          <textarea
-            id="composer"
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            placeholder="Type your medical research prompt (or use uploads and voice)"
-            rows={2}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter' && !e.shiftKey) {
-                e.preventDefault()
-                void onSend()
-              }
-            }}
-          />
+          <div className="textareaWrap">
+            <textarea
+              id="composer"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="Type your medical research prompt (or use uploads and voice)"
+              rows={2}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && !e.shiftKey) {
+                  e.preventDefault()
+                  void onSend()
+                }
+              }}
+            />
+            <button
+              className={`iconBtn micBtn${recording ? ' recording' : ''}`}
+              type="button"
+              disabled={busy}
+              aria-label={recording ? 'Stop microphone recording' : 'Start microphone recording'}
+              title={recording ? 'Stop microphone recording' : 'Start microphone recording'}
+              onClick={() => void onMicToggle()}
+            >
+              {'\u{1F3A4}'}
+            </button>
+          </div>
           <button className="btn" type="button" onClick={onSend} disabled={busy || !query.trim()}>
             {busy ? 'Searching...' : 'Search'}
           </button>
@@ -305,12 +320,9 @@ export default function ChatPage() {
           <button className="btn secondary" type="button" disabled={busy} onClick={() => audioInputRef.current?.click()}>
             Audio file
           </button>
-          <button className="btn secondary" type="button" disabled={busy} onClick={() => void onMicToggle()}>
-            {recording ? 'Stop mic' : 'Record mic'}
-          </button>
         </div>
 
-        <div className="smallMuted">Enter to send | Shift+Enter newline | Search opens results</div>
+        <div className="smallMuted">Enter to send | Shift+Enter newline | Use simple queries and avoid overly complex prompts | Search opens results</div>
       </div>
     )
   }
@@ -344,14 +356,13 @@ export default function ChatPage() {
           ) : null}
         </div>
       </header>
-
       <div className="chatArea">
         {!activeChat ? (
           <div className="welcome landing">
             <div className="landingStack">
               <div className="landingHeader">
-                <div className="landingTitle">MedRAG Research Chat</div>
-                <div className="landingSubtitle">Ask, upload, or record. Results appear below your prompt.</div>
+                <div className="landingTitle">MedRAG Research Assistant</div>
+                <div className="landingSubtitle">Search biomedical evidence with multimodal input, hybrid retrieval, and citation-backed summaries in one modern workflow.</div>
               </div>
               <div className="recommendedLabel">Recommended prompts</div>
               <div className="recommendedPrompts">
@@ -377,4 +388,5 @@ export default function ChatPage() {
     </div>
   )
 }
+
 

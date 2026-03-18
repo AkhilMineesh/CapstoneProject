@@ -336,7 +336,15 @@ def _has_tesseract() -> bool:
 
 
 def extract_text_from_audio(filename: str, data: bytes) -> str:
-    # Use local faster-whisper first.
+    # Prefer OpenAI transcription when key is available for consistent quality.
+    if _openai_api_key():
+        try:
+            return _extract_text_from_openai_audio(filename, data)
+        except Exception:
+            # Fall back to local model if OpenAI transcription fails transiently.
+            pass
+
+    # Local fallback: faster-whisper.
     try:
         from faster_whisper import WhisperModel
         import tempfile
@@ -358,10 +366,6 @@ def extract_text_from_audio(filename: str, data: bytes) -> str:
     except Exception:
         pass
 
-    # Fallback to OpenAI audio transcription model.
-    if _openai_api_key():
-        return _extract_text_from_openai_audio(filename, data)
-
     raise RuntimeError(
-        "Audio transcription unavailable. Install faster-whisper (+soundfile), or configure OpenAI key for multimodal fallback."
+        "Audio transcription unavailable. Configure OpenAI key or install faster-whisper (+soundfile)."
     )
