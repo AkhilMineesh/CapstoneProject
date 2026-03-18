@@ -4,7 +4,7 @@ import ShimmerButton from '../components/ShimmerButton'
 
 export default function LandingPage() {
   const nav = useNavigate()
-  const introText = 'Welcome to MedRAG Research Assistant'
+  const introText = 'Welcome to MedAssist Research Assistant'
   const [phase, setPhase] = useState<'typing' | 'move' | 'done'>('typing')
   const [typedLen, setTypedLen] = useState(0)
 
@@ -25,7 +25,7 @@ export default function LandingPage() {
   }, [phase])
 
   return (
-    <main className="heroPage" aria-label="MedRAG landing">
+    <main className="heroPage" aria-label="MedAssist landing">
       {phase !== 'done' ? (
         <div className={`heroIntroOverlay phase-${phase}`} aria-hidden="true">
           <div className="heroIntroLine">{introText.slice(0, typedLen)}</div>
@@ -35,7 +35,7 @@ export default function LandingPage() {
       {phase === 'done' ? (
         <section className="heroPanel heroPanelReveal">
           <div className="heroEyebrow">Medical Research Intelligence</div>
-          <h1 className="heroTitle">MedRAG Research Assistant</h1>
+          <h1 className="heroTitle">MedAssist Research Assistant</h1>
           <p className="heroSubtitle">
             Search biomedical evidence with multimodal input, hybrid retrieval, and citation-backed summaries in one modern workflow.
           </p>
@@ -58,8 +58,8 @@ export default function LandingPage() {
             </article>
           </div>
 
-          <section className="heroPurpose" aria-label="Why MedRAG">
-            <div className="heroPurposeHead">Why use MedRAG</div>
+          <section className="heroPurpose" aria-label="Why MedAssist">
+            <div className="heroPurposeHead">Why use MedAssist</div>
             <div className="heroPurposeGrid">
               <article className="heroPurposeCard">
                 <div className="heroPurposeTitle">Cut search noise</div>
@@ -85,3 +85,5 @@ export default function LandingPage() {
     </main>
   )
 }
+
+

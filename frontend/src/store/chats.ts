@@ -24,12 +24,12 @@ export type Chat = {
   turns: Record<string, ChatTurn>
 }
 
-const KEY = 'medrag_chats_v2'
-const LAST_KEY = 'medrag_last_chat_v2'
+const KEY = 'MedAssist_chats_v2'
+const LAST_KEY = 'MedAssist_last_chat_v2'
 
 let memoryChats: Chat[] | null = null
 let memoryLast: string | null = null
-const EVT = 'medrag_chats_changed'
+const EVT = 'MedAssist_chats_changed'
 
 function now() {
   return Date.now()
@@ -243,3 +243,4 @@ export function saveTurn(chat: Chat, query: string, response: AnalyzeResponse): 
   chat.updatedAt = now()
   return turnId
 }
+

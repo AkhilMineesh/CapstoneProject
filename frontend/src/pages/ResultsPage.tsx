@@ -62,7 +62,7 @@ export default function ResultsPage() {
             className="iconBtn mobileOnly"
             type="button"
             aria-label="Open sidebar"
-            onClick={() => window.dispatchEvent(new CustomEvent('medrag:openSidebar'))}
+            onClick={() => window.dispatchEvent(new CustomEvent('MedAssist:openSidebar'))}
           >
             Menu
           </button>
@@ -86,7 +86,7 @@ export default function ResultsPage() {
           className="iconBtn mobileOnly"
           type="button"
           aria-label="Open sidebar"
-          onClick={() => window.dispatchEvent(new CustomEvent('medrag:openSidebar'))}
+          onClick={() => window.dispatchEvent(new CustomEvent('MedAssist:openSidebar'))}
         >
           Menu
         </button>
@@ -182,3 +182,4 @@ export default function ResultsPage() {
     </div>
   )
 }
+

@@ -37,9 +37,9 @@ export default function ChatPage() {
   const mediaStreamRef = useRef<MediaStream | null>(null)
   const chunksRef = useRef<BlobPart[]>([])
   const [recording, setRecording] = useState(false)
-  const introFullText = 'Welcome to MedRAG Research Assistant'
+  const introFullText = 'Welcome to MedAssist Research Assistant'
   const introPrefix = 'Welcome to '
-  const introBrand = 'MedRAG Research Assistant'
+  const introBrand = 'MedAssist Research Assistant'
   const [introPhase, setIntroPhase] = useState<'typing' | 'move' | 'done'>('typing')
   const [typedLen, setTypedLen] = useState(0)
 
@@ -209,7 +209,7 @@ export default function ChatPage() {
   function landingHeader() {
     return (
       <div className="landingHeader">
-        <div className="landingTitle">MedRAG Research Assistant</div>
+        <div className="landingTitle">MedAssist Research Assistant</div>
         <div className="landingSubtitle">Search biomedical evidence with multimodal input, hybrid retrieval, and citation-backed summaries in one modern workflow.</div>
       </div>
     )
@@ -384,14 +384,14 @@ export default function ChatPage() {
           className="iconBtn mobileOnly"
           type="button"
           aria-label="Open sidebar"
-          onClick={() => window.dispatchEvent(new CustomEvent('medrag:openSidebar'))}
+          onClick={() => window.dispatchEvent(new CustomEvent('MedAssist:openSidebar'))}
         >
           Menu
         </button>
         <div className="topTitle">
           {activeChat ? (
             <>
-              <div className="h1">MedRAG Research Chat</div>
+              <div className="h1">MedAssist Research Chat</div>
               <div className="sub">Refine your query, then open the updated results.</div>
             </>
           ) : (
@@ -435,6 +435,7 @@ export default function ChatPage() {
     </div>
   )
 }
+
 
 
 

@@ -19,15 +19,15 @@ export default function Sidebar(props: { mobileOpen: boolean; setMobileOpen: (v:
   return (
     <aside className={props.mobileOpen ? 'sidebar open' : 'sidebar'} aria-label="Chat history">
       <div className="sideTop">
-        <div className="sideBrand" role="button" tabIndex={0} onClick={() => navigate('/chat')}>
+        <button className="sideBrand" type="button" onClick={() => navigate('/chat')}>
           <div className="logo" aria-hidden="true">
-            <img src="/medrag-logo.svg" alt="" />
+            <img src="/MedAssist-logo.svg" alt="" />
           </div>
           <div className="brandText">
-            <div className="brandTitle">MedRAG</div>
+            <div className="brandTitle">MedAssist</div>
             <div className="brandSub">Evidence workspace</div>
           </div>
-        </div>
+        </button>
         <button
           className="iconBtn mobileOnly"
           onClick={() => props.setMobileOpen(false)}
@@ -97,3 +97,5 @@ export default function Sidebar(props: { mobileOpen: boolean; setMobileOpen: (v:
     </aside>
   )
 }
+
+

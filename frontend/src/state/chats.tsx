@@ -36,7 +36,7 @@ type ChatsState = {
   getChat: (id: string) => Chat | null
 }
 
-const STORAGE_KEY = 'medrag.chats.v1'
+const STORAGE_KEY = 'MedAssist.chats.v1'
 
 function safeParseChats(raw: string | null): Chat[] {
   if (!raw) return []
@@ -182,3 +182,4 @@ export function useChats(): ChatsState {
   if (!ctx) throw new Error('useChats must be used within ChatsProvider')
   return ctx
 }
+

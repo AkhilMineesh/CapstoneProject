@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import json
 import re
 from typing import Any
 
@@ -9,6 +8,7 @@ from ..intelligence.summarize import summarize_insights
 from ..mesh import expand_with_mesh
 from ..retrieval.guardrails import validate_medical_terminology
 from ..retrieval.hybrid import hybrid_retrieve
+from ..retrieval.query_normalization import normalize_user_query
 from ..settings import settings
 
 
@@ -107,9 +107,12 @@ def _clinical_applicability(results: list[dict[str, Any]]) -> dict[str, Any]:
 
 
 def run_multi_agent_analysis(req: dict[str, Any]) -> dict[str, Any]:
-    query = (req.get("query") or "").strip()
-    if not query:
+    query_raw = (req.get("query") or "").strip()
+    if not query_raw:
         raise ValueError("Missing required field: query")
+
+    # Normalize casual phrasing into retrieval-oriented biomedical text.
+    query = normalize_user_query(query_raw)
 
     top_k = int(req.get("top_k") or settings.final_top_k)
     rerank = bool(req.get("rerank", True))
@@ -123,12 +126,10 @@ def run_multi_agent_analysis(req: dict[str, Any]) -> dict[str, Any]:
         n = int(conn.execute("SELECT COUNT(1) AS c FROM papers").fetchone()["c"])
         if n == 0:
             raise ValueError("Index is empty. Ingest PubMed/MEDLINE abstracts first (see backend/scripts/ingest_pubmed.py).")
-        emb_n = int(conn.execute("SELECT COUNT(1) AS c FROM embeddings").fetchone()["c"])
         years = conn.execute("SELECT MIN(year) AS min_y, MAX(year) AS max_y FROM papers").fetchone()
         min_year = years["min_y"] if years else None
         max_year = years["max_y"] if years else None
 
-        mesh = None
         expanded_query = query
         if settings.mesh_expand:
             import asyncio
@@ -149,6 +150,7 @@ def run_multi_agent_analysis(req: dict[str, Any]) -> dict[str, Any]:
                 guardrail_warnings.append(
                     f"Requested year filter ends at {int(y_to)}, but indexed data currently starts at {int(min_year)}."
                 )
+
         results = hybrid_retrieve(
             conn=conn,
             query=query,
@@ -161,14 +163,15 @@ def run_multi_agent_analysis(req: dict[str, Any]) -> dict[str, Any]:
         insights = None
         if include_insights:
             insights = summarize_insights(
-                query=query,
+                query=query_raw,
                 expanded_query=expanded_query if expanded_query != query else None,
                 results=results,
                 guardrails=guardrail_warnings,
             )
 
         return {
-            "query": query,
+            "query": query_raw,
+            "normalized_query": query if query != query_raw else None,
             "expanded_query": expanded_query if expanded_query != query else None,
             "results": results,
             "insights": insights,

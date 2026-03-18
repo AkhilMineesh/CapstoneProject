@@ -76,6 +76,10 @@ body {
   gap: 10px;
   cursor: pointer;
   user-select: none;
+  border: 0;
+  background: transparent;
+  padding: 0;
+  text-align: left;
 }
 
 .logo {
@@ -1228,6 +1232,28 @@ select:focus {
   gap: 16px;
 }
 
+.heroBrand {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.heroBrandLogo {
+  width: 52px;
+  height: 52px;
+  border-radius: 14px;
+  border: 1px solid #bfdbfe;
+  background: #fff;
+  display: grid;
+  place-items: center;
+  box-shadow: 0 12px 24px rgba(30, 58, 138, 0.18);
+}
+
+.heroBrandLogo img {
+  width: 38px;
+  height: 38px;
+  display: block;
+}
 .heroEyebrow {
   justify-self: start;
   padding: 6px 12px;
@@ -1409,6 +1435,8 @@ select:focus {
     transform: translateY(0) scale(1);
   }
 }
+
+
 
 
 

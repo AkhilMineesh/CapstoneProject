@@ -16,8 +16,8 @@ export default function App() {
     function onOpen() {
       setMobileOpen(true)
     }
-    window.addEventListener('medrag:openSidebar', onOpen as EventListener)
-    return () => window.removeEventListener('medrag:openSidebar', onOpen as EventListener)
+    window.addEventListener('MedAssist:openSidebar', onOpen as EventListener)
+    return () => window.removeEventListener('MedAssist:openSidebar', onOpen as EventListener)
   }, [])
 
   return (
@@ -31,10 +31,12 @@ export default function App() {
           <Route path="/chat" element={<ChatPage />} />
           <Route path="/chat/:chatId" element={<ChatPage />} />
           <Route path="/chat/:chatId/results" element={<ResultsPage />} />
-          <Route path="*" element={<Navigate to="/" replace />} />
+          <Route path="*" element={<Navigate to="/chat" replace />} />
         </Routes>
       </div>
     </ChatsProvider>
   )
 }
+
+
 
