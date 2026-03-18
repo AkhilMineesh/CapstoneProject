@@ -43,8 +43,10 @@ export default function ResultsPage() {
 
   const filtered = useMemo(() => {
     const needle = q.trim().toLowerCase()
-    if (!needle) return results
-    return results.filter((r) => `${r.title} ${r.abstract} ${r.citation.journal ?? ''}`.toLowerCase().includes(needle))
+    const base = needle
+      ? results.filter((r) => `${r.title} ${r.abstract} ${r.citation.journal ?? ''}`.toLowerCase().includes(needle))
+      : results
+    return [...base].sort((a, b) => (b.score || 0) - (a.score || 0))
   }, [q, results])
 
   const findingParts = useMemo(

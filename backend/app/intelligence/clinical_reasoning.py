@@ -8,7 +8,7 @@ import httpx
 from ..settings import settings
 
 
-def _paper_payload(results: list[dict[str, Any]], max_papers: int = 8) -> list[dict[str, Any]]:
+def _paper_payload(results: list[dict[str, Any]], max_papers: int = 6) -> list[dict[str, Any]]:
     out: list[dict[str, Any]] = []
     for r in results[:max_papers]:
         citation = r.get("citation") or {}
@@ -22,7 +22,7 @@ def _paper_payload(results: list[dict[str, Any]], max_papers: int = 8) -> list[d
                 "journal": citation.get("journal"),
                 "publication_types": r.get("publication_types") or [],
                 "evidence_snippets": [e.get("text") for e in evidence if isinstance(e, dict) and e.get("text")][:3],
-                "abstract": abstract[:1800],
+                "abstract": abstract[:1000],
             }
         )
     return out
@@ -57,7 +57,8 @@ def generate_clinical_reasoning(
     }
 
     headers = {"Authorization": f"Bearer {settings.openai_api_key}"}
-    with httpx.Client(base_url=settings.openai_base_url, headers=headers, timeout=settings.openai_reasoning_timeout_s) as client:
+    timeout = httpx.Timeout(connect=15.0, read=settings.openai_reasoning_timeout_s, write=30.0, pool=15.0)
+    with httpx.Client(base_url=settings.openai_base_url, headers=headers, timeout=timeout) as client:
         r = client.post(
             "/chat/completions",
             json={
@@ -117,4 +118,5 @@ def generate_clinical_reasoning(
         "limitations": clean_limits,
         "model": settings.openai_reasoning_model,
     }
+
 

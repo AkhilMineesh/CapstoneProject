@@ -22,7 +22,7 @@ export default function ChatPage() {
   const [diseaseArea, setDiseaseArea] = useState('')
   const [studyType, setStudyType] = useState('')
   const [rerank, setRerank] = useState(true)
-  const [insights, setInsights] = useState(true)
+  const [insights, setInsights] = useState(false)
 
   const [journals, setJournals] = useState<string[]>([])
   const [diseaseAreas, setDiseaseAreas] = useState<string[]>([])
@@ -100,13 +100,16 @@ export default function ChatPage() {
     setBusy(true)
     try {
       const resp = await analyzeFile(kind, file, { rerank, include_insights: insights })
+      const fallbackQuery = kind === 'document' ? 'Uploaded document' : kind === 'image' ? 'Uploaded image/screenshot' : 'Uploaded audio discussion'
+      const derivedQuery = (resp.query || '').trim() || fallbackQuery
       const req: SearchRequest = {
-        query: kind === 'document' ? 'Uploaded document' : kind === 'image' ? 'Uploaded image/screenshot' : 'Uploaded audio discussion',
+        query: derivedQuery,
         filters: buildFilters(),
         rerank,
         include_insights: insights,
       }
-      const chat = createChatFromResponse(req, resp, `${kind.toUpperCase()} upload: ${file.name}`)
+      setQuery(derivedQuery)
+      const chat = createChatFromResponse(req, resp, derivedQuery)
       setActiveChatId(chat.id)
       nav(`/chat/${chat.id}/results`)
     } catch (e) {
@@ -374,3 +377,4 @@ export default function ChatPage() {
     </div>
   )
 }
+

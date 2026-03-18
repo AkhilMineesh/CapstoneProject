@@ -59,6 +59,8 @@ _STOPWORDS = {
     "stage",
     "resectable",
     "localized",
+    "option",
+    "options",
 }
 
 
@@ -116,14 +118,14 @@ def _keyword_search(conn: sqlite3.Connection, query: str, top_k: int) -> list[Hy
     anchors = {"cancer", "carcinoma", "neoplasm", "arthritis", "vaccine", "vaccines", "infection", "disease", "syndrome"}
     for i in range(len(terms) - 1):
         a, b = terms[i], terms[i + 1]
-        if b in anchors or (len(a) >= 5 and len(b) >= 5):
+        if b in anchors:
             phrase = f"\"{a} {b}\""
             break
 
     required: list[str] = []
     if phrase:
         required.append(phrase)
-    required.extend(terms[:6])
+    required.extend(terms[:4])
     required = [t for t in required if t]
 
     fts_query = " AND ".join(required[:8]) if required else query
@@ -269,18 +271,19 @@ def hybrid_retrieve(
 
     # 4) optional cross-encoder re-ranking
     rescored: list[tuple[str, float]] = []
+    rerank_n = min(settings.rerank_top_k, max(top_k * 2, 10))
     if rerank and ordered_rows:
         try:
-            passages = [f"{r['title']}\n\n{r['abstract']}" for r in ordered_rows[: settings.rerank_top_k]]
+            passages = [f"{r['title']}\n\n{r['abstract']}" for r in ordered_rows[: rerank_n]]
             ce_scores = rerank_pairs(query, passages)
             if len(ce_scores) != len(passages) or not ce_scores:
                 raise RuntimeError("Reranker unavailable or returned unexpected scores.")
-            for r, s in zip(ordered_rows[: settings.rerank_top_k], ce_scores, strict=False):
+            for r, s in zip(ordered_rows[: rerank_n], ce_scores, strict=False):
                 rescored.append((r["pmid"], float(s)))
             # Keep the rest by hybrid score
             kept = {pmid for pmid, _ in rescored}
             base_score = {pmid: sc for pmid, sc in combined}
-            for r in ordered_rows[settings.rerank_top_k :]:
+            for r in ordered_rows[rerank_n :]:
                 rescored.append((r["pmid"], float(base_score.get(r["pmid"], 0.0))))
             rescored.sort(key=lambda x: x[1], reverse=True)
         except Exception:  # noqa: BLE001
@@ -471,27 +474,7 @@ def hybrid_retrieve(
             {"require_title_terms": True, "require_intervention": False, "min_overlap": max(1, required_overlap - 1)},
         ]
 
-    seen_pmids: set[str] = set()
-    for pmid, score in rescored:
-        if pmid not in by_pmid:
-            continue
-        if filters_active and pmid not in allowed_pmids:
-            continue
-        if pmid in seen_pmids:
-            continue
-        r = by_pmid[pmid]
-
-        accepted = False
-        for lvl_i, lvl in enumerate(gate_levels):
-            if not _passes(r, **lvl):
-                continue
-            # Only allow relaxed levels once strict hasn't produced enough.
-            if lvl_i > 0 and len(results) >= min_desired:
-                continue
-            accepted = True
-            break
-        if not accepted:
-            continue
+    def _append_result(pmid: str, score: float, r: sqlite3.Row) -> None:
         authors = json.loads(r["authors_json"] or "[]")
         mesh_terms = json.loads(r["mesh_terms_json"] or "[]")
         keywords = json.loads(r["keywords_json"] or "[]")
@@ -507,7 +490,6 @@ def hybrid_retrieve(
         evidence = [{"text": s.text, "why": s.why} for s in pick_evidence_snippets(r["abstract"], expanded_query, max_snippets=3)]
         key_points = [e["text"] for e in evidence if isinstance(e, dict) and e.get("text")]
         if not key_points and (r["abstract"] or "").strip():
-            # Fallback: first sentence-level slice when snippet extraction is empty.
             key_points = [(r["abstract"] or "").strip()[:240]]
         results.append(
             {
@@ -525,8 +507,61 @@ def hybrid_retrieve(
                 "key_points": key_points[:3],
             }
         )
+
+    seen_pmids: set[str] = set()
+    for pmid, score in rescored:
+        if pmid not in by_pmid:
+            continue
+        if filters_active and pmid not in allowed_pmids:
+            continue
+        if pmid in seen_pmids:
+            continue
+        r = by_pmid[pmid]
+
+        accepted = False
+        for lvl_i, lvl in enumerate(gate_levels):
+            if not _passes(r, **lvl):
+                continue
+            if lvl_i > 0 and len(results) >= min_desired:
+                continue
+            accepted = True
+            break
+        if not accepted:
+            continue
+
+        _append_result(pmid, score, r)
         seen_pmids.add(pmid)
         if len(results) >= top_k:
             break
 
+    # Backfill pass: if strict gates under-fill results, relax carefully to meet top_k.
+    if len(results) < top_k:
+        backfill_levels = [
+            {"require_title_terms": False, "require_intervention": wants_intervention, "min_overlap": 1},
+            {"require_title_terms": False, "require_intervention": False, "min_overlap": 1},
+            {"require_title_terms": False, "require_intervention": False, "min_overlap": 0},
+        ]
+        for lvl in backfill_levels:
+            for pmid, score in rescored:
+                if len(results) >= top_k:
+                    break
+                if pmid not in by_pmid:
+                    continue
+                if filters_active and pmid not in allowed_pmids:
+                    continue
+                if pmid in seen_pmids:
+                    continue
+                r = by_pmid[pmid]
+                if wants_noninvasive:
+                    doc_terms = {t.lower() for t in re.findall(r"[A-Za-z0-9]+", f"{r['title']} {r['abstract']}") if len(t) >= 3}
+                    if any(m in doc_terms for m in surgical_markers) and not any(m in doc_terms for m in noninvasive_markers):
+                        continue
+                if not _passes(r, **lvl):
+                    continue
+                _append_result(pmid, score, r)
+                seen_pmids.add(pmid)
+            if len(results) >= top_k:
+                break
+
+    results.sort(key=lambda x: float(x.get("score") or 0.0), reverse=True)
     return results

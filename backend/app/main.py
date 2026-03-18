@@ -2,15 +2,85 @@ from __future__ import annotations
 
 import json
 import os
+import re
 
 from flask import Flask, jsonify, request
 from flask_cors import CORS
 
 from .agents.orchestrator import run_multi_agent_analysis
 from .db import db_conn, migrate
-from .multimodal.extract import extract_text_from_audio, extract_text_from_document, extract_text_from_image
-from .multimodal.query_compact import compact_query_from_text
+from .multimodal.extract import extract_text_from_audio, extract_text_from_document, infer_query_from_image
+from .multimodal.query_compact import compact_query_from_text, simple_query_from_text
 from .settings import settings
+
+
+
+
+_IMAGE_QUERY_GENERIC_TERMS = {
+    "effect",
+    "effects",
+    "pathology",
+    "pathological",
+    "finding",
+    "findings",
+    "image",
+    "figure",
+    "chart",
+    "screenshot",
+    "analysis",
+}
+
+
+def _image_query_fallbacks(query: str) -> list[str]:
+    raw = [t.lower() for t in re.findall(r"[A-Za-z0-9]+", query or "") if len(t) >= 3]
+    if not raw:
+        return ["medical research"]
+
+    # Keep signal terms; remove weak visual-description fillers.
+    tokens: list[str] = []
+    seen: set[str] = set()
+    for t in raw:
+        if t in _IMAGE_QUERY_GENERIC_TERMS:
+            continue
+        if t in seen:
+            continue
+        seen.add(t)
+        tokens.append(t)
+
+    if not tokens:
+        tokens = raw[:3]
+
+    out: list[str] = []
+
+    if "smoking" in tokens and ("lung" in tokens or "pulmonary" in tokens):
+        out.append("smoking lung disease")
+
+    if len(tokens) >= 2:
+        out.append(f"{tokens[0]} {tokens[1]}")
+        out.append(f"{tokens[0]} {tokens[1]} treatment")
+    if len(tokens) >= 3:
+        out.append(" ".join(tokens[:3]))
+
+    if "cancer" in tokens and "lung" in tokens:
+        out.append("lung cancer treatment")
+
+    out.append(" ".join(tokens[:2]) if len(tokens) >= 2 else tokens[0])
+    out.append("medical research")
+
+    # Dedupe while preserving order and skipping the exact original query.
+    final: list[str] = []
+    q0 = (query or "").strip().lower()
+    seen_q: set[str] = set()
+    for cand in out:
+        s = " ".join(cand.split()).strip()
+        if not s:
+            continue
+        sl = s.lower()
+        if sl == q0 or sl in seen_q:
+            continue
+        seen_q.add(sl)
+        final.append(s)
+    return final
 
 
 def create_app() -> Flask:
@@ -181,8 +251,13 @@ def create_app() -> Flask:
         data = f.read()
         try:
             text = extract_text_from_document(f.filename or "upload", data)
-            mode = (request.args.get("mode") or "keywords").strip().lower()
-            query_text = text if mode == "full" else compact_query_from_text(text)
+            mode = (request.args.get("mode") or "simple").strip().lower()
+            if mode == "full":
+                query_text = text
+            elif mode == "keywords":
+                query_text = compact_query_from_text(text)
+            else:
+                query_text = simple_query_from_text(text) or compact_query_from_text(text)
             resp = run_multi_agent_analysis(
                 {
                     "query": query_text,
@@ -201,14 +276,28 @@ def create_app() -> Flask:
         f = request.files["file"]
         data = f.read()
         try:
-            text = extract_text_from_image(f.filename or "upload", data)
+            query_text = infer_query_from_image(f.filename or "upload", data)
+            rerank = request.args.get("rerank", "true").lower() != "false"
+            include_insights = request.args.get("include_insights", "true").lower() != "false"
             resp = run_multi_agent_analysis(
                 {
-                    "query": text,
-                    "rerank": request.args.get("rerank", "true").lower() != "false",
-                    "include_insights": request.args.get("include_insights", "true").lower() != "false",
+                    "query": query_text,
+                    "rerank": rerank,
+                    "include_insights": include_insights,
                 }
             )
+            if not (resp.get("results") or []):
+                for alt in _image_query_fallbacks(query_text):
+                    trial = run_multi_agent_analysis(
+                        {
+                            "query": alt,
+                            "rerank": rerank,
+                            "include_insights": include_insights,
+                        }
+                    )
+                    if trial.get("results"):
+                        resp = trial
+                        break
         except Exception as e:  # noqa: BLE001
             return jsonify({"detail": str(e)}), 400
         return jsonify(resp)
@@ -248,3 +337,5 @@ def _run_dev_server() -> None:
 
 if __name__ == "__main__":
     _run_dev_server()
+
+

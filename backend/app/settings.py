@@ -113,12 +113,12 @@ def load_settings() -> Settings:
     openai_base_url = _env("MEDRAG_OPENAI_BASE_URL", "https://api.openai.com/v1") or ""
     openai_embedding_model = _env("MEDRAG_OPENAI_EMBEDDING_MODEL", "text-embedding-3-small") or ""
     openai_reasoning_model = _env("MEDRAG_OPENAI_REASONING_MODEL", "gpt-4.1-mini") or ""
-    openai_reasoning_timeout_s = _env_float("MEDRAG_OPENAI_REASONING_TIMEOUT_S", 120.0)
+    openai_reasoning_timeout_s = _env_float("MEDRAG_OPENAI_REASONING_TIMEOUT_S", 30.0)
     openai_clinical_reasoning = _env_bool("MEDRAG_OPENAI_CLINICAL_REASONING", True)
 
     rerank_model = _env("MEDRAG_RERANK_MODEL", "cross-encoder/ms-marco-MiniLM-L-6-v2") or ""
     openai_rerank_model = _env("MEDRAG_OPENAI_RERANK_MODEL")
-    rerank_top_k = _env_int("MEDRAG_RERANK_TOP_K", 30)
+    rerank_top_k = _env_int("MEDRAG_RERANK_TOP_K", 20)
 
     keyword_top_k = _env_int("MEDRAG_KEYWORD_TOP_K", 100)
     vector_top_k = _env_int("MEDRAG_VECTOR_TOP_K", 100)
@@ -169,3 +169,5 @@ def load_settings() -> Settings:
 
 
 settings = load_settings()
+
+

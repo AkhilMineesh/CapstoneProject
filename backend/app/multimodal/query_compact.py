@@ -157,3 +157,74 @@ def compact_query_from_text(text: str, *, max_chars: int = 8000) -> str:
     ).strip()
     return query[:max_chars]
 
+
+
+
+def simple_query_from_text(text: str, *, max_terms: int = 6, max_chars: int = 180) -> str:
+    """
+    Build a short, human-readable query from extracted document/image text.
+    Prefer broad natural phrasing over long keyword lists.
+    """
+    t = _normalize_ws(text or "")
+    if not t:
+        return ""
+
+    lines = [ln.strip() for ln in t.split("\n") if ln.strip()]
+    first_line = lines[0] if lines else ""
+
+    # If the first line already looks like a concise prompt/title, use it.
+    if first_line and 4 <= len(first_line.split()) <= 14 and len(first_line) <= 90:
+        q = first_line
+        return re.sub(r"\s+", " ", q).strip()[:max_chars]
+
+    words = [w.lower() for w in _WORD_RE.findall(t[:3000])]
+    words = [w for w in words if w not in _STOP and not re.fullmatch(r"(19|20)\d{2}", w)]
+    top_terms = [w for w, _ in Counter(words).most_common(max_terms)]
+
+    canon_map = {
+        "radiation": "radiotherapy",
+        "radiotherapy": "radiotherapy",
+        "tumor": "cancer",
+        "tumors": "cancer",
+        "cancers": "cancer",
+    }
+    generic = {
+        "treatment",
+        "therapy",
+        "therapies",
+        "study",
+        "studies",
+        "research",
+        "analysis",
+        "patient",
+        "patients",
+        "disease",
+        "clinical",
+    }
+
+    seen: set[str] = set()
+    terms: list[str] = []
+    for w in top_terms:
+        c = canon_map.get(w, w)
+        if c in seen:
+            continue
+        seen.add(c)
+        terms.append(c)
+
+    domain_terms = [x for x in terms if x not in generic]
+
+    if "cancer" in domain_terms:
+        q = "Cancer treatment options"
+    elif len(domain_terms) >= 2:
+        q = f"Research on {domain_terms[0]} and {domain_terms[1]}"
+    elif len(domain_terms) == 1:
+        q = f"Research on {domain_terms[0]}"
+    elif terms:
+        q = f"Research on {terms[0]}"
+    else:
+        q = "Medical research summary"
+
+    q = re.sub(r"\s+", " ", q).strip()
+    if q:
+        q = q[0].upper() + q[1:]
+    return q[:max_chars]

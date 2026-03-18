@@ -62,7 +62,7 @@ python scripts\download_pubmed_baseline.py --out data\pubmed_baseline --max-file
 ```powershell
 cd backend
 .\.venv\Scripts\Activate.ps1
-python scripts\ingest_pubmed_dir.py --dir data\pubmed_baseline --build-embeddings --latest --max-files 25
+python scripts\ingest_pubmed_dir.py --dir data\pubmed_baseline --build-embeddings --latest --max-files 50
 ```
 It is suggested that you select the number of files you desire to ingest into the database.
 

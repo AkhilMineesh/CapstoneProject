@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import base64
+import hashlib
 import io
 import mimetypes
 import os
@@ -8,6 +9,10 @@ import subprocess
 from pathlib import Path
 
 import httpx
+
+
+_IMAGE_QUERY_CACHE: dict[str, str] = {}
+_IMAGE_QUERY_CACHE_MAX = 512
 
 
 def _openai_api_key() -> str | None:
@@ -130,6 +135,77 @@ def _extract_text_from_openai_image(filename: str, data: bytes) -> str:
     if not text:
         raise RuntimeError("OpenAI image extraction returned empty text.")
     return text
+
+
+def infer_query_from_image(filename: str, data: bytes) -> str:
+    """
+    Build a short research query from what the image depicts (not only OCR text).
+    Uses OpenAI vision understanding when available; falls back to OCR-derived query.
+    Returns deterministic output for identical image bytes via a local cache.
+    """
+    cache_key = hashlib.sha256(data).hexdigest()
+    cached = _IMAGE_QUERY_CACHE.get(cache_key)
+    if cached:
+        return cached
+
+    if _openai_api_key():
+        headers = _openai_headers()
+        mime = mimetypes.guess_type(filename)[0] or "image/png"
+        b64 = base64.b64encode(data).decode("ascii")
+        payload = {
+            "model": _openai_mm_model(),
+            "temperature": 0,
+            "input": [
+                {
+                    "role": "user",
+                    "content": [
+                        {
+                            "type": "input_text",
+                            "text": (
+                                "You are generating a medical literature search query from an uploaded image. "
+                                "Analyze what the image is about (figure/chart/radiology/screenshot/clinical photo). "
+                                "Return exactly ONE broad PubMed-friendly query (3-8 words) with core disease/exposure/intervention terms only. Avoid narrow qualifiers. No explanation."
+                            ),
+                        },
+                        {"type": "input_image", "image_url": f"data:{mime};base64,{b64}"},
+                    ],
+                }
+            ],
+        }
+        timeout = httpx.Timeout(connect=20.0, read=60.0, write=60.0, pool=20.0)
+        with httpx.Client(base_url=_openai_base_url(), timeout=timeout, headers=headers) as client:
+            r = client.post("/responses", json=payload)
+            r.raise_for_status()
+            j = r.json()
+        q = (j.get("output_text") or "").strip()
+        if not q:
+            q = _extract_text_from_response_json(j).strip()
+        if q:
+            q = " ".join(q.split())[:180]
+            _IMAGE_QUERY_CACHE[cache_key] = q
+            if len(_IMAGE_QUERY_CACHE) > _IMAGE_QUERY_CACHE_MAX:
+                _IMAGE_QUERY_CACHE.pop(next(iter(_IMAGE_QUERY_CACHE)))
+            return q
+
+    # Fallback path: OCR + compact simplification
+    try:
+        from .query_compact import simple_query_from_text
+
+        text = extract_text_from_image(filename, data)
+        q = simple_query_from_text(text)
+        if q:
+            q = " ".join(q.split())[:180]
+            _IMAGE_QUERY_CACHE[cache_key] = q
+            if len(_IMAGE_QUERY_CACHE) > _IMAGE_QUERY_CACHE_MAX:
+                _IMAGE_QUERY_CACHE.pop(next(iter(_IMAGE_QUERY_CACHE)))
+            return q
+    except Exception:
+        pass
+    q = "Medical research from uploaded image"
+    _IMAGE_QUERY_CACHE[cache_key] = q
+    if len(_IMAGE_QUERY_CACHE) > _IMAGE_QUERY_CACHE_MAX:
+        _IMAGE_QUERY_CACHE.pop(next(iter(_IMAGE_QUERY_CACHE)))
+    return q
 
 
 def _extract_text_from_openai_audio(filename: str, data: bytes) -> str:
